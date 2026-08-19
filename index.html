@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Eurovision Song Contest - Voting</title>
+  <!-- SDK Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
     :root {
       --bg-gradient: linear-gradient(135deg, #0f0c20 0%, #1a103c 50%, #0f0c20 100%);
@@ -84,28 +87,9 @@
     .country-info { display: flex; align-items: center; gap: 10px; text-align: left; }
     .country-num { font-size: 0.8rem; font-weight: 700; color: #ffffff; opacity: 0.6; width: 18px; }
     
-    .artist-img-container {
-      position: relative;
-      width: 48px;
-      height: 48px;
-    }
-    .artist-img {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 1px solid var(--card-border);
-    }
-    .flag-mini {
-      position: absolute;
-      bottom: 0px;
-      right: -2px;
-      width: 18px;
-      height: 12px;
-      border-radius: 2px;
-      box-shadow: 0 0 4px rgba(0,0,0,0.8);
-      object-fit: cover;
-    }
+    .artist-img-container { position: relative; width: 48px; height: 48px; }
+    .artist-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 1px solid var(--card-border); }
+    .flag-mini { position: absolute; bottom: 0px; right: -2px; width: 18px; height: 12px; border-radius: 2px; box-shadow: 0 0 4px rgba(0,0,0,0.8); object-fit: cover; }
 
     .song-details { display: flex; flex-direction: column; }
     .country-name { font-weight: 700; font-size: 0.9rem; text-transform: uppercase; color: #ffffff; }
@@ -117,15 +101,9 @@
       background: rgba(255, 255, 255, 0.15);
       border: 1px solid var(--card-border);
       color: #ffffff;
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      font-size: 1.1rem;
-      font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 30px; height: 30px; border-radius: 50%;
+      font-size: 1.1rem; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
     }
     .vote-num { font-weight: 700; width: 18px; text-align: center; font-size: 0.95rem; color: #ffffff; }
 
@@ -135,25 +113,15 @@
       display: flex; justify-content: center; align-items: center; z-index: 100;
     }
     .modal-box {
-      background: #120924;
-      border: 1px solid var(--card-border);
-      padding: 20px;
-      border-radius: 16px;
-      width: 90%;
-      max-width: 550px;
+      background: #120924; border: 1px solid var(--card-border);
+      padding: 20px; border-radius: 16px; width: 90%; max-width: 550px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
 
-    .modal-box-large {
-      max-width: 90%;
-      max-height: 85vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
+    .modal-box-large { max-width: 95%; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; }
 
-    input[type="password"] {
-      width: 100%; padding: 10px; margin: 15px 0;
+    input[type="password"], input[type="email"], input[type="number"] {
+      width: 100%; padding: 10px; margin: 8px 0;
       border-radius: 8px; border: 1px solid var(--card-border);
       background: rgba(255,255,255,0.05); color: #ffffff; text-align: center;
     }
@@ -167,45 +135,19 @@
     .summary-flag { width: 22px; height: 15px; border-radius: 2px; object-fit: cover; }
 
     .table-wrapper {
-      overflow-x: auto;
-      overflow-y: auto;
-      max-height: 50vh;
-      margin: 15px 0;
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
+      overflow-x: auto; overflow-y: auto; max-height: 50vh;
+      margin: 15px 0; border: 1px solid var(--card-border); border-radius: 8px;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 0.85rem;
-      color: #ffffff;
-    }
-
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      white-space: nowrap;
-    }
-
-    th {
-      background: rgba(255, 255, 255, 0.1);
-      font-weight: 700;
-      position: sticky;
-      top: 0;
-    }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; color: #ffffff; }
+    th, td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); white-space: nowrap; }
+    th { background: rgba(255, 255, 255, 0.1); font-weight: 700; position: sticky; top: 0; }
 
     .btn-secondary {
       background: rgba(255,255,255,0.1); border: 1px solid var(--card-border); color: #ffffff;
       padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; margin: 4px;
     }
     .btn-danger { background: #ff3366; border: none; color: #ffffff; }
-
-    @media (min-width: 768px) {
-      body { padding: 30px; }
-      .country-card { padding: 10px 18px; }
-    }
   </style>
 </head>
 <body>
@@ -242,12 +184,17 @@
     <button onclick="openStaffModal()" style="background:none; border:none; color: rgba(255,255,255,0.4); cursor:pointer; font-size: 0.8rem;">Staff</button>
   </div>
 
-  <!-- MODAL DE RESUMEN CON BANDERAS -->
+  <!-- MODAL DE RESUMEN Y DATOS DEL VOTANTE -->
   <div id="summary-modal" class="modal hidden">
     <div class="modal-box">
       <h3 style="margin-top:0; color:#ffffff;">Resumen de Votación</h3>
-      <p style="font-size:0.85rem; color:#cccccc;">Comprueba tus votos antes de enviar:</p>
-      <div id="summary-list" style="max-height: 260px; overflow-y: auto; margin: 12px 0;"></div>
+      <p style="font-size:0.85rem; color:#cccccc;">Introduce tus datos para registrar el voto:</p>
+      
+      <input type="email" id="voter-email" placeholder="Correo electrónico" required>
+      <input type="number" id="voter-age" placeholder="Edad" min="1" max="120" required>
+      <div id="summary-error" class="error-msg"></div>
+
+      <div id="summary-list" style="max-height: 180px; overflow-y: auto; margin: 12px 0;"></div>
       <button class="btn-main" style="width:100%;" onclick="submitVote()">Confirmar Voto</button>
       <button class="btn-secondary" style="width:100%; margin-top:8px;" onclick="closeSummaryModal()">Volver</button>
     </div>
@@ -255,7 +202,7 @@
 
   <!-- MODAL STAFF DESGLOSE EN TABLA -->
   <div id="staff-modal" class="modal hidden">
-    <div class="modal-box modal-box-large" id="modal-box-staff">
+    <div class="modal-box modal-box-large">
       <h3 style="margin-top:0; color:#ffffff;">Acceso Staff</h3>
       <div id="staff-auth">
         <input type="password" id="staff-pass" placeholder="Contraseña">
@@ -263,7 +210,7 @@
         <button onclick="closeStaffModal()" class="btn-secondary" style="width:100%; margin-top:8px;">Cancelar</button>
       </div>
       <div id="staff-results" class="hidden" style="display: flex; flex-direction: column; height: 100%;">
-        <h3 style="margin: 0; color: #ffffff;">Desglose de Votaciones</h3>
+        <h3 style="margin: 0; color: #ffffff;">Desglose de Votaciones (Ordenado por Total)</h3>
         <div class="table-wrapper">
           <table id="split-table">
             <thead><tr id="table-header"></tr></thead>
@@ -280,6 +227,21 @@
   </div>
 
   <script>
+    // --- PEGA AQUÍ LA CONFIGURACIÓN DE TU PROYECTO DE FIREBASE ---
+    const firebaseConfig = {
+      apiKey: "TU_API_KEY",
+      authDomain: "TU_PROYECTO.firebaseapp.com",
+      databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+      projectId: "TU_PROYECTO",
+      storageBucket: "TU_PROYECTO.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:abcdef"
+    };
+    
+    // Inicializar Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     const countries = [
       { id: "01", name: "Bulgaria", code: "bg", song: "Луда", artist: "NICKA", image: "https://www.loud-mag.com/wp-content/uploads/2025/04/orig-2.jpg" },
       { id: "02", name: "Andorra", code: "ad", song: "SELENA", artist: "Daniela Blasco", image: "https://images.genius.com/b01e3d9cb9c2aaf0f1d6608ed61c254b.1000x1000x1.jpg" },
@@ -296,20 +258,18 @@
 
     let votes = {};
     let currentLang = 'es';
+    let globalHistory = [];
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playSound(freq) {
       if (audioCtx.state === 'suspended') { audioCtx.resume(); }
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
+      osc.type = 'sine'; osc.frequency.value = freq;
       gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.1);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.1);
     }
 
     const translations = {
@@ -317,31 +277,24 @@
         instr: "Debes repartir exactamente 20 votos entre un mínimo de 4 países.",
         rem: "Votos restantes: ",
         errMin: "Debes votar al menos a 4 países diferentes.",
-        errTotal: "Debes repartir exactamente los 20 votos.",
-        alreadyVoted: "Ya has votado desde este dispositivo."
+        errTotal: "Debes repartir exactamente los 20 votos."
       },
       en: {
         instr: "You must distribute exactly 20 votes among at least 4 countries.",
         rem: "Remaining votes: ",
         errMin: "You must vote for at least 4 different countries.",
-        errTotal: "You must distribute exactly 20 votes.",
-        alreadyVoted: "You have already voted from this device."
+        errTotal: "You must distribute exactly 20 votes."
       },
       fr: {
         instr: "Vous devez distribuer exactement 20 votes entre au moins 4 pays.",
         rem: "Votes restants: ",
         errMin: "Vous devez voter pour au moins 4 pays différents.",
-        errTotal: "Vous devez distribuer exactement les 20 votes.",
-        alreadyVoted: "Vous avez déjà voté depuis cet appareil."
+        errTotal: "Vous devez distribuer exactement les 20 votes."
       }
     };
 
     function goToLanguage() {
       playSound(500);
-      if (localStorage.getItem('hasVoted')) {
-        alert(translations[currentLang].alreadyVoted);
-        return;
-      }
       document.getElementById('screen-welcome').classList.add('hidden');
       document.getElementById('screen-language').classList.remove('hidden');
     }
@@ -442,15 +395,44 @@
     function closeSummaryModal() { document.getElementById('summary-modal').classList.add('hidden'); }
 
     function submitVote() {
-      playSound(900);
-      localStorage.setItem('hasVoted', 'true');
+      const email = document.getElementById('voter-email').value.trim().toLowerCase();
+      const age = document.getElementById('voter-age').value.trim();
+      const summaryErr = document.getElementById('summary-error');
 
-      let history = JSON.parse(localStorage.getItem('eurovision_history') || '[]');
-      history.push(votes);
-      localStorage.setItem('eurovision_history', JSON.stringify(history));
+      if (!email || !email.includes('@')) {
+        summaryErr.innerText = "Introduce un correo electrónico válido.";
+        playSound(200); return;
+      }
+      if (!age || age < 1 || age > 120) {
+        summaryErr.innerText = "Introduce una edad válida.";
+        playSound(200); return;
+      }
 
-      alert("¡Gracias por votar / Thank you for voting!");
-      location.reload();
+      // Validar si el email ya existe en Firebase
+      db.ref('votes').once('value', snapshot => {
+        const data = snapshot.val() || {};
+        const emails = Object.values(data).map(v => v.email);
+
+        if (emails.includes(email)) {
+          summaryErr.innerText = "Este correo electrónico ya ha emitido un voto.";
+          playSound(200);
+          return;
+        }
+
+        // Guardar voto si no está duplicado
+        const newVoteRef = db.ref('votes').push();
+        newVoteRef.set({
+          email: email,
+          age: age,
+          lang: currentLang.toUpperCase(),
+          votes: votes,
+          timestamp: Date.now()
+        }).then(() => {
+          playSound(900);
+          alert("¡Gracias por votar / Thank you for voting!");
+          location.reload();
+        });
+      });
     }
 
     function openStaffModal() { 
@@ -467,32 +449,47 @@
         playSound(700);
         document.getElementById('staff-auth').classList.add('hidden');
         document.getElementById('staff-results').classList.remove('hidden');
-        renderSplitTable();
+        fetchAndRenderSplitTable();
       } else {
         playSound(200);
         alert('Contraseña incorrecta');
       }
     }
 
+    function fetchAndRenderSplitTable() {
+      db.ref('votes').once('value', snapshot => {
+        const data = snapshot.val() || {};
+        globalHistory = Object.values(data);
+        renderSplitTable();
+      });
+    }
+
     function renderSplitTable() {
-      const history = JSON.parse(localStorage.getItem('eurovision_history') || '[]');
       const header = document.getElementById('table-header');
       const body = document.getElementById('table-body');
       
       header.innerHTML = '<th>País</th>';
-      history.forEach((_, index) => {
-        header.innerHTML += `<th>Votante ${index + 1}</th>`;
+      globalHistory.forEach((v, index) => {
+        header.innerHTML += `<th title="${v.email} (${v.age} años)">Votante ${index + 1} (${v.lang})</th>`;
       });
       header.innerHTML += '<th>TOTAL</th>';
 
-      body.innerHTML = '';
+      // Calcular totales por país para ordenar
+      let totals = {};
       countries.forEach(c => {
-        let total = 0;
+        totals[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
+      });
+
+      // Ordenar países de mayor a menor total
+      let sortedCountries = [...countries].sort((a, b) => totals[b.name] - totals[a.name]);
+
+      body.innerHTML = '';
+      sortedCountries.forEach(c => {
+        let total = totals[c.name];
         let rowHtml = `<tr><td><strong>${c.name}</strong></td>`;
         
-        history.forEach(v => {
-          const val = v[c.name] || 0;
-          total += val;
+        globalHistory.forEach(v => {
+          const val = v.votes[c.name] || 0;
           rowHtml += `<td>${val}</td>`;
         });
 
@@ -502,27 +499,32 @@
     }
 
     function resetVotes() {
-      if (confirm("¿Seguro que deseas eliminar el historial completo de votos?")) {
-        localStorage.removeItem('eurovision_history');
-        localStorage.removeItem('hasVoted');
-        renderSplitTable();
-        alert("Historial borrado.");
+      if (confirm("¿Seguro que deseas eliminar TODOS los votos en Firebase?")) {
+        db.ref('votes').remove().then(() => {
+          globalHistory = [];
+          renderSplitTable();
+          alert("Base de datos reseteada.");
+        });
       }
     }
 
     function exportCSV() {
-      const history = JSON.parse(localStorage.getItem('eurovision_history') || '[]');
       let csvContent = "data:text/csv;charset=utf-8,Pais";
       
-      history.forEach((_, i) => csvContent += `,Votante ${i + 1}`);
+      globalHistory.forEach((v, i) => csvContent += `,Votante ${i + 1} (${v.lang}) - ${v.email} (${v.age}a)`);
       csvContent += ",TOTAL\n";
 
+      let totals = {};
       countries.forEach(c => {
-        let total = 0;
+        totals[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
+      });
+      let sortedCountries = [...countries].sort((a, b) => totals[b.name] - totals[a.name]);
+
+      sortedCountries.forEach(c => {
+        let total = totals[c.name];
         let line = `${c.name}`;
-        history.forEach(v => {
-          const val = v[c.name] || 0;
-          total += val;
+        globalHistory.forEach(v => {
+          const val = v.votes[c.name] || 0;
           line += `,${val}`;
         });
         line += `,${total}\n`;
