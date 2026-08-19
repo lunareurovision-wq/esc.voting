@@ -227,15 +227,13 @@
   </div>
 
   <script>
-    // --- PEGA AQUÍ LA CONFIGURACIÓN DE TU PROYECTO DE FIREBASE ---
+    // Configuración de tu proyecto eurovision-votos
     const firebaseConfig = {
-      apiKey: "TU_API_KEY",
-      authDomain: "TU_PROYECTO.firebaseapp.com",
-      databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
-      projectId: "TU_PROYECTO",
-      storageBucket: "TU_PROYECTO.appspot.com",
-      messagingSenderId: "1234567890",
-      appId: "1:1234567890:web:abcdef"
+      apiKey: "AIzaSyCaPYwjRxUib9NFAtNyrAqY2Ie3gd0B32U",
+      authDomain: "eurovision-votos.firebaseapp.com",
+      databaseURL: "https://eurovision-votos-default-rtdb.firebaseio.com",
+      projectId: "eurovision-votos",
+      storageBucket: "eurovision-votos.appspot.com"
     };
     
     // Inicializar Firebase
@@ -408,7 +406,6 @@
         playSound(200); return;
       }
 
-      // Validar si el email ya existe en Firebase
       db.ref('votes').once('value', snapshot => {
         const data = snapshot.val() || {};
         const emails = Object.values(data).map(v => v.email);
@@ -419,7 +416,6 @@
           return;
         }
 
-        // Guardar voto si no está duplicado
         const newVoteRef = db.ref('votes').push();
         newVoteRef.set({
           email: email,
@@ -474,13 +470,11 @@
       });
       header.innerHTML += '<th>TOTAL</th>';
 
-      // Calcular totales por país para ordenar
       let totals = {};
       countries.forEach(c => {
         totals[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
       });
 
-      // Ordenar países de mayor a menor total
       let sortedCountries = [...countries].sort((a, b) => totals[b.name] - totals[a.name]);
 
       body.innerHTML = '';
