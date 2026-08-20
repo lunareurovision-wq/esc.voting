@@ -13,12 +13,13 @@
       --card-border: rgba(255, 255, 255, 0.18);
       --accent-pink: #d10078;
       --accent-cyan: #00f0ff;
+      --accent-green: #00ff88;
       --text-color: #ffffff;
     }
 
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 
-    /* Fondo para Ordenadores y Tablets por defecto */
+    /* Fondo para Ordenadores y Tablets */
     body {
       background-image: url('https://media.discordapp.net/attachments/1364266851097645196/1539796410927423528/image.png?ex=6a879ea8&is=6a864d28&hm=e7a8d88a4eaada1be30068104fe5e8da7777f6aca54f8b78d84bc65fc3de90ff&=&format=webp&quality=lossless');
       background-size: cover;
@@ -131,12 +132,14 @@
 
     .modal-box-large { max-width: 95%; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; }
 
-    input[type="password"], input[type="email"], input[type="text"], input[type="number"] {
+    input[type="password"], input[type="email"], input[type="text"], input[type="number"], select {
       width: 100%; padding: 10px; margin: 6px 0;
       border-radius: 8px; border: 1px solid var(--card-border);
-      background: rgba(255,255,255,0.08); color: #ffffff; text-align: center;
+      background: #1e1338; color: #ffffff; text-align: center;
       font-size: 0.9rem;
     }
+
+    select option { background: #120924; color: #ffffff; }
 
     .summary-card {
       display: flex; align-items: center; justify-content: space-between;
@@ -202,7 +205,21 @@
       <h3 style="margin-top:0; color:#ffffff;">Resumen de Votación</h3>
       
       <div id="voter-details">
-        <input type="text" id="voter-name" placeholder="Nombre completo" required>
+        <select id="voter-origin" required>
+          <option value="" disabled selected>Selecciona tu País de Origen</option>
+          <option value="Bulgaria">🇧🇬 Bulgaria</option>
+          <option value="Andorra">🇦🇩 Andorra</option>
+          <option value="Canada">🇨🇦 Canada</option>
+          <option value="France">🇫🇷 France</option>
+          <option value="Germany">🇩🇪 Germany</option>
+          <option value="Iceland">🇮🇸 Iceland</option>
+          <option value="Latvia">🇱🇻 Latvia</option>
+          <option value="Norway">🇳🇴 Norway</option>
+          <option value="UK">🇬🇧 UK</option>
+          <option value="Spain">🇪🇸 Spain</option>
+          <option value="Sweden">🇸🇪 Sweden</option>
+          <option value="Rest of the World">🌍 Rest of the World</option>
+        </select>
         <input type="email" id="voter-email" placeholder="Correo electrónico" required>
         <input type="number" id="voter-age" placeholder="Tu Edad" min="1" max="120" required>
       </div>
@@ -396,12 +413,12 @@
     function closeSummaryModal() { document.getElementById('summary-modal').classList.add('hidden'); }
 
     function submitVote() {
-      const name = document.getElementById('voter-name').value.trim();
+      const origin = document.getElementById('voter-origin').value;
       const email = document.getElementById('voter-email').value.trim();
       const age = document.getElementById('voter-age').value.trim();
       const summaryErr = document.getElementById('summary-error');
 
-      if (!name || !email || !age) {
+      if (!origin || !email || !age) {
         summaryErr.innerText = "Por favor, completa todos los campos.";
         playSound(200); return;
       }
@@ -433,7 +450,7 @@
 
         const newVoteRef = db.ref('votes').push();
         newVoteRef.set({
-          name: name,
+          originCountry: origin,
           email: email,
           age: age,
           lang: currentLang.toUpperCase(),
@@ -511,34 +528,60 @@
       
       header.innerHTML = '<th>País</th>';
       globalHistory.forEach((v, index) => {
-        header.innerHTML += `<th title="${v.name} | ${v.email} | IP: ${v.ip}">${v.name || 'Votante ' + (index+1)} (${v.age}a - ${v.lang})</th>`;
+        const originDisplay = v.originCountry || v.name || ('Votante ' + (index+1));
+        header.innerHTML += `<th title="Origen: ${originDisplay} | Email: ${v.email} | IP: ${v.ip}">${originDisplay} (${v.age}a - ${v.lang})</th>`;
       });
-      header.innerHTML += '<th>TOTAL REAL</th><th style="color:var(--accent-pink);">PROP. (638 pts)</th>';
+      header.innerHTML += '<th>TOTAL REAL</th><th style="color:var(--accent-pink);">PROP. (638 pts)</th><th style="color:var(--accent-green);">PROP. SIN AUTOVOTO (638 pts)</th>';
 
-      let totals = {};
-      let grandTotalSum = 0;
+      let totalsReal = {};
+      let totalsNoSelfVote = {};
+      let grandTotalReal = 0;
+      let grandTotalNoSelfVote = 0;
+
       countries.forEach(c => {
-        totals[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
-        grandTotalSum += totals[c.name];
+        // Calcular total real
+        totalsReal[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
+        grandTotalReal += totalsReal[c.name];
+
+        // Calcular total sin autovoto (si origen == pais votado, se omite ese voto)
+        totalsNoSelfVote[c.name] = globalHistory.reduce((sum, v) => {
+          const voterOrigin = v.originCountry || v.name || '';
+          if (voterOrigin.toLowerCase() === c.name.toLowerCase()) {
+            return sum; // Se descarta el autovoto
+          }
+          return sum + (v.votes[c.name] || 0);
+        }, 0);
+        grandTotalNoSelfVote += totalsNoSelfVote[c.name];
       });
 
-      let propPoints = calculateProportional638(totals, grandTotalSum);
-      let sortedCountries = [...countries].sort((a, b) => totals[b.name] - totals[a.name]);
+      let propPointsReal = calculateProportional638(totalsReal, grandTotalReal);
+      let propPointsNoSelfVote = calculateProportional638(totalsNoSelfVote, grandTotalNoSelfVote);
+
+      let sortedCountries = [...countries].sort((a, b) => totalsReal[b.name] - totalsReal[a.name]);
 
       body.innerHTML = '';
       sortedCountries.forEach(c => {
-        let totalReal = totals[c.name];
-        let prop638 = propPoints[c.name] || 0;
+        let totalReal = totalsReal[c.name];
+        let prop638 = propPointsReal[c.name] || 0;
+        let prop638NoSelf = propPointsNoSelfVote[c.name] || 0;
 
         let rowHtml = `<tr><td><strong>${c.name}</strong></td>`;
         
         globalHistory.forEach(v => {
           const val = v.votes[c.name] || 0;
-          rowHtml += `<td>${val}</td>`;
+          const voterOrigin = v.originCountry || v.name || '';
+          const isSelfVote = (voterOrigin.toLowerCase() === c.name.toLowerCase() && val > 0);
+          
+          if (isSelfVote) {
+            rowHtml += `<td style="color:#ff3366;" title="Autovoto excluido en cálculo final">${val}*</td>`;
+          } else {
+            rowHtml += `<td>${val}</td>`;
+          }
         });
 
         rowHtml += `<td style="color:var(--accent-cyan); font-weight:700;">${totalReal}</td>`;
-        rowHtml += `<td style="color:var(--accent-pink); font-weight:700;">${prop638}</td></tr>`;
+        rowHtml += `<td style="color:var(--accent-pink); font-weight:700;">${prop638}</td>`;
+        rowHtml += `<td style="color:var(--accent-green); font-weight:700;">${prop638NoSelf}</td></tr>`;
         body.innerHTML += rowHtml;
       });
     }
@@ -556,28 +599,45 @@
     function exportCSV() {
       let csvContent = "data:text/csv;charset=utf-8,Pais";
       
-      globalHistory.forEach((v, i) => csvContent += `,${v.name || 'Votante ' + (i+1)} (${v.email} - ${v.age}a - ${v.lang} - IP:${v.ip})`);
-      csvContent += ",TOTAL REAL,PROPORCIONAL (638 pts)\n";
+      globalHistory.forEach((v, i) => {
+        const originDisplay = v.originCountry || v.name || ('Votante ' + (i+1));
+        csvContent += `,${originDisplay} (${v.email} - ${v.age}a - ${v.lang} - IP:${v.ip})`;
+      });
+      csvContent += ",TOTAL REAL,PROPORCIONAL (638 pts),PROP SIN AUTOVOTO (638 pts)\n";
 
-      let totals = {};
-      let grandTotalSum = 0;
+      let totalsReal = {};
+      let totalsNoSelfVote = {};
+      let grandTotalReal = 0;
+      let grandTotalNoSelfVote = 0;
+
       countries.forEach(c => {
-        totals[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
-        grandTotalSum += totals[c.name];
+        totalsReal[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
+        grandTotalReal += totalsReal[c.name];
+
+        totalsNoSelfVote[c.name] = globalHistory.reduce((sum, v) => {
+          const voterOrigin = v.originCountry || v.name || '';
+          if (voterOrigin.toLowerCase() === c.name.toLowerCase()) return sum;
+          return sum + (v.votes[c.name] || 0);
+        }, 0);
+        grandTotalNoSelfVote += totalsNoSelfVote[c.name];
       });
 
-      let propPoints = calculateProportional638(totals, grandTotalSum);
-      let sortedCountries = [...countries].sort((a, b) => totals[b.name] - totals[a.name]);
+      let propPointsReal = calculateProportional638(totalsReal, grandTotalReal);
+      let propPointsNoSelfVote = calculateProportional638(totalsNoSelfVote, grandTotalNoSelfVote);
+
+      let sortedCountries = [...countries].sort((a, b) => totalsReal[b.name] - totalsReal[a.name]);
 
       sortedCountries.forEach(c => {
-        let totalReal = totals[c.name];
-        let prop638 = propPoints[c.name] || 0;
+        let totalReal = totalsReal[c.name];
+        let prop638 = propPointsReal[c.name] || 0;
+        let prop638NoSelf = propPointsNoSelfVote[c.name] || 0;
+
         let line = `${c.name}`;
         globalHistory.forEach(v => {
           const val = v.votes[c.name] || 0;
           line += `,${val}`;
         });
-        line += `,${totalReal},${prop638}\n`;
+        line += `,${totalReal},${prop638},${prop638NoSelf}\n`;
         csvContent += line;
       });
 
