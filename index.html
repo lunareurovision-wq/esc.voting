@@ -142,7 +142,7 @@
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
 
-    .modal-box-large { max-width: 95%; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; }
+    .modal-box-large { max-width: 95%; height: 90vh; display: flex; flex-direction: column; }
 
     input[type="password"], input[type="email"], input[type="text"], input[type="number"], select {
       width: 100%; padding: 10px; margin: 6px 0;
@@ -161,18 +161,19 @@
     .summary-info { display: flex; align-items: center; gap: 10px; }
     .summary-flag { width: 22px; height: 15px; border-radius: 2px; object-fit: cover; }
 
+    .staff-content-scroll { overflow-y: auto; flex: 1; padding-right: 5px; margin-bottom: 10px; }
+
     .table-wrapper {
-      overflow-x: auto; overflow-y: auto; max-height: 35vh;
-      margin: 10px 0; border: 1px solid var(--card-border); border-radius: 8px;
+      overflow-x: auto; margin: 8px 0 15px 0; border: 1px solid var(--card-border); border-radius: 8px;
     }
 
     table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; color: #ffffff; }
-    th, td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); white-space: nowrap; }
-    th { background: rgba(255, 255, 255, 0.1); font-weight: 700; position: sticky; top: 0; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); white-space: nowrap; }
+    th { background: rgba(255, 255, 255, 0.1); font-weight: 700; position: sticky; top: 0; z-index: 2; }
 
     .btn-secondary {
       background: rgba(255,255,255,0.1); border: 1px solid var(--card-border); color: #ffffff;
-      padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; margin: 4px;
+      padding: 8px 14px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; margin: 2px;
     }
     .btn-danger { background: #ff3366; border: none; color: #ffffff; }
   </style>
@@ -299,29 +300,76 @@
         <button class="btn-main" style="width:100%;" onclick="checkStaffPass()">Entrar</button>
         <button onclick="closeStaffModal()" class="btn-secondary" style="width:100%; margin-top:8px;">Cancelar</button>
       </div>
-      <div id="staff-results" class="hidden" style="display: flex; flex-direction: column; height: 100%;">
-        <h4 style="margin: 5px 0 0 0; color: #ffffff;">Votos del Público (Suma Exacta: 638 pts)</h4>
-        <div class="table-wrapper">
-          <table id="split-table">
-            <thead><tr id="table-header"></tr></thead>
-            <tbody id="table-body"></tbody>
-          </table>
+      <div id="staff-results" class="hidden" style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+        
+        <!-- CONTENIDO CON SCROLL INTERNO -->
+        <div class="staff-content-scroll">
+          <h4 style="margin: 5px 0 0 0; color: #ffffff;">Votos del Público (Suma Exacta: 638 pts)</h4>
+          <div class="table-wrapper">
+            <table id="split-table">
+              <thead><tr id="table-header"></tr></thead>
+              <tbody id="table-body"></tbody>
+            </table>
+          </div>
+
+          <h4 style="margin: 15px 0 0 0; color: #ffffff;">Votos del Jurado</h4>
+          <div class="table-wrapper">
+            <table id="jury-split-table">
+              <thead><tr id="jury-table-header"></tr></thead>
+              <tbody id="jury-table-body"></tbody>
+            </table>
+          </div>
+
+          <h4 style="margin: 15px 0 0 0; color: var(--accent-green);">CLASIFICACIÓN GENERAL COMBINADA (Jury + Televoto)</h4>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Pos.</th>
+                  <th>País</th>
+                  <th>Jurado</th>
+                  <th>Televoto (Prop.)</th>
+                  <th style="color:var(--accent-green);">TOTAL COMBINADO</th>
+                </tr>
+              </thead>
+              <tbody id="combined-table-body"></tbody>
+            </table>
+          </div>
         </div>
 
-        <h4 style="margin: 5px 0 0 0; color: #ffffff;">Votos del Jurado</h4>
-        <div class="table-wrapper">
-          <table id="jury-split-table">
-            <thead><tr id="jury-table-header"></tr></thead>
-            <tbody id="jury-table-body"></tbody>
-          </table>
+        <!-- PANEL DE ACCIONES Y BORRADO EN PIE DE MODAL (FIJO) -->
+        <div style="border-top: 1px solid var(--card-border); padding-top: 10px; margin-top: auto; display:flex; flex-direction:column; gap:8px;">
+          
+          <!-- RESET ESPECÍFICO DE JURADO -->
+          <div style="display:flex; gap:6px; align-items:center;">
+            <select id="reset-single-jury-select" style="margin:0; padding:6px; font-size:0.8rem;">
+              <option value="" disabled selected>Seleccionar Jurado para Borrar</option>
+              <option value="Iceland">Iceland</option>
+              <option value="Spain">Spain</option>
+              <option value="Sweden">Sweden</option>
+              <option value="Andorra">Andorra</option>
+              <option value="Latvia">Latvia</option>
+              <option value="Germany">Germany</option>
+              <option value="UK">UK</option>
+              <option value="France">France</option>
+              <option value="Canada">Canada</option>
+              <option value="Bulgaria">Bulgaria</option>
+              <option value="Norway">Norway</option>
+            </select>
+            <button class="btn-secondary btn-danger" style="white-space:nowrap;" onclick="resetSingleJuryVote()">Borrar Jurado País</button>
+          </div>
+
+          <!-- BOTONES GENERALES DE ACCIÓN -->
+          <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px;">
+            <button class="btn-secondary btn-danger" onclick="resetTelevotes()">Reset Televoto</button>
+            <button class="btn-secondary btn-danger" onclick="resetJuryVotes()">Reset Jurado Todo</button>
+            <button class="btn-secondary" onclick="exportCSV()">CSV Público</button>
+            <button class="btn-secondary" style="background:var(--accent-pink); font-weight:700;" onclick="copyJuryVotes()">Copy Jury Votes</button>
+          </div>
+
+          <button class="btn-main" style="width:100%; padding:8px;" onclick="closeStaffModal()">Cerrar</button>
         </div>
 
-        <div style="display:flex; justify-content:space-between; margin-top: auto; flex-wrap:wrap; gap:5px;">
-          <button class="btn-secondary btn-danger" onclick="resetVotes()">Resetear Votos</button>
-          <button class="btn-secondary" onclick="exportCSV()">Descargar CSV Público</button>
-          <button class="btn-secondary" style="background:var(--accent-pink);" onclick="copyJuryVotes()">Copy Jury Votes</button>
-        </div>
-        <button class="btn-main" style="width:100%; margin-top:8px;" onclick="closeStaffModal()">Cerrar</button>
       </div>
     </div>
   </div>
@@ -394,9 +442,9 @@
     }
 
     const translations = {
-      es: { instr: "Debes repartir exactamente 20 votos entre un mínimo de 4 países.", rem: "Votos restantes: ", errMin: "Debes votar al menos a 4 países diferentes.", errTotal: "Debes repartir exactamente los 20 votos." },
-      en: { instr: "You must distribute exactly 20 votes among at least 4 countries.", rem: "Remaining votes: ", errMin: "You must vote for at least 4 different countries.", errTotal: "You must distribute exactly 20 votes." },
-      fr: { instr: "Vous devez distribuer exactamente 20 votes entre au moins 4 pays.", rem: "Votes restants: ", errMin: "Vous devez voter pour au moins 4 pays différents.", errTotal: "Vous devez distribuer exactamente les 20 votes." }
+      es: { instr: "Debes repartir exactamente 20 votos entre un mínimo de 6 países.", rem: "Votos restantes: ", errMin: "Debes votar al menos a 6 países diferentes.", errTotal: "Debes repartir exactamente los 20 votos." },
+      en: { instr: "You must distribute exactly 20 votes among at least 6 countries.", rem: "Remaining votes: ", errMin: "You must vote for at least 6 different countries.", errTotal: "You must distribute exactly 20 votes." },
+      fr: { instr: "Vous devez distribuer exactamente 20 votes entre au moins 6 pays.", rem: "Votes restants: ", errMin: "Vous devez voter pour au moins 6 pays différents.", errTotal: "Vous devez distribuer exactamente les 20 votes." }
     };
 
     function goToLanguage() {
@@ -467,7 +515,7 @@
       const totalVotes = Object.values(votes).reduce((a, b) => a + b, 0);
       const errorEl = document.getElementById('error-display');
 
-      if (activeCountries < 4) {
+      if (activeCountries < 6) {
         errorEl.innerText = translations[currentLang].errMin;
         playSound(200); return;
       }
@@ -514,20 +562,20 @@
         playSound(200); return;
       }
 
-      summaryErr.innerText = "Verificando red Wi-Fi/IP...";
+      summaryErr.innerText = "Verificando registro...";
 
       db.ref('votes').once('value', snapshot => {
         const data = snapshot.val() || {};
         const voters = Object.values(data);
 
         if (voters.some(v => v.ip === userIP && userIP !== 'Desconocida')) {
-          summaryErr.innerText = "Ya se ha registrado un voto desde esta conexión Wi-Fi/IP.";
+          summaryErr.innerText = "Ya has votado previamente.";
           playSound(200);
           return;
         }
 
         if (voters.some(v => v.email.toLowerCase() === email.toLowerCase())) {
-          summaryErr.innerText = "Este correo electrónico ya ha sido utilizado para votar.";
+          summaryErr.innerText = "Ya has votado previamente.";
           playSound(200);
           return;
         }
@@ -549,7 +597,7 @@
       });
     }
 
-    // FUNCIONES PARA EL JURADO
+    // JURADO
     function openJuryAuthModal() {
       document.getElementById('jury-pass').value = '';
       document.getElementById('jury-auth-error').innerText = '';
@@ -702,7 +750,7 @@
       });
     }
 
-    // STAFF & RESULTADOS
+    // STAFF & CALCULOS
     function openStaffModal() { 
       document.getElementById('staff-pass').value = '';
       document.getElementById('staff-auth').classList.remove('hidden');
@@ -725,16 +773,14 @@
     }
 
     function fetchAndRenderSplitTable() {
-      db.ref('votes').once('value', snapshot => {
-        const data = snapshot.val() || {};
-        globalHistory = Object.values(data);
-        renderSplitTable();
-      });
-
-      db.ref('juryVotes').once('value', snapshot => {
-        const data = snapshot.val() || {};
-        globalJuryHistory = Object.values(data);
-        renderJurySplitTable();
+      db.ref('votes').once('value', snapshotVotes => {
+        globalHistory = Object.values(snapshotVotes.val() || {});
+        db.ref('juryVotes').once('value', snapshotJury => {
+          globalJuryHistory = Object.values(snapshotJury.val() || {});
+          renderSplitTable();
+          renderJurySplitTable();
+          renderCombinedTable();
+        });
       });
     }
 
@@ -772,7 +818,7 @@
       header.innerHTML = '<th>País</th>';
       globalHistory.forEach((v, index) => {
         const originDisplay = v.originCountry || v.name || ('Votante ' + (index+1));
-        header.innerHTML += `<th title="Origen: ${originDisplay} | Email: ${v.email} | IP: ${v.ip}">${originDisplay} (${v.age}a - ${v.lang})</th>`;
+        header.innerHTML += `<th title="Origen: ${originDisplay} | Email: ${v.email}">${originDisplay} (${v.age}a - ${v.lang})</th>`;
       });
       header.innerHTML += '<th>TOTAL REAL</th><th style="color:var(--accent-pink);">PROP. (638 pts)</th><th style="color:var(--accent-green);">PROP. SIN AUTOVOTO (638 pts)</th>';
 
@@ -858,6 +904,50 @@
       });
     }
 
+    function renderCombinedTable() {
+      const body = document.getElementById('combined-table-body');
+
+      let totalsNoSelfVote = {};
+      let grandTotalNoSelfVote = 0;
+
+      countries.forEach(c => {
+        totalsNoSelfVote[c.name] = globalHistory.reduce((sum, v) => {
+          const voterOrigin = v.originCountry || v.name || '';
+          if (voterOrigin.toLowerCase() === c.name.toLowerCase()) return sum;
+          return sum + (v.votes[c.name] || 0);
+        }, 0);
+        grandTotalNoSelfVote += totalsNoSelfVote[c.name];
+      });
+
+      let telePropMap = calculateProportional638(totalsNoSelfVote, grandTotalNoSelfVote);
+
+      let combinedData = countries.map(c => {
+        let juryPts = globalJuryHistory.reduce((sum, j) => sum + (j.points ? (j.points[c.name] || 0) : 0), 0);
+        let telePts = telePropMap[c.name] || 0;
+        return {
+          name: c.name,
+          jury: juryPts,
+          tele: telePts,
+          total: juryPts + telePts
+        };
+      });
+
+      combinedData.sort((a, b) => b.total - a.total);
+
+      body.innerHTML = '';
+      combinedData.forEach((item, idx) => {
+        body.innerHTML += `
+          <tr>
+            <td><strong>#${idx + 1}</strong></td>
+            <td><strong>${item.name}</strong></td>
+            <td>${item.jury}</td>
+            <td>${item.tele}</td>
+            <td style="color:var(--accent-green); font-weight:800; font-size:1rem;">${item.total}</td>
+          </tr>
+        `;
+      });
+    }
+
     function getOrdinalSuffix(i) {
       const j = i % 10, k = i % 100;
       if (j === 1 && k !== 11) return i + "ST";
@@ -909,17 +999,34 @@
       });
     }
 
-    function resetVotes() {
-      if (confirm("¿Seguro que deseas eliminar TODOS los votos (público y jurado) en Firebase?")) {
-        Promise.all([
-          db.ref('votes').remove(),
-          db.ref('juryVotes').remove()
-        ]).then(() => {
-          globalHistory = [];
-          globalJuryHistory = [];
-          renderSplitTable();
-          renderJurySplitTable();
-          alert("Base de datos reseteada por completo.");
+    function resetTelevotes() {
+      if (confirm("¿Deseas eliminar únicamente los votos del PÚBLICO?")) {
+        db.ref('votes').remove().then(() => {
+          fetchAndRenderSplitTable();
+          alert("Votos del público reseteados.");
+        });
+      }
+    }
+
+    function resetJuryVotes() {
+      if (confirm("¿Deseas eliminar TODOS los votos del JURADO?")) {
+        db.ref('juryVotes').remove().then(() => {
+          fetchAndRenderSplitTable();
+          alert("Todos los votos de jurados han sido eliminados.");
+        });
+      }
+    }
+
+    function resetSingleJuryVote() {
+      const selected = document.getElementById('reset-single-jury-select').value;
+      if (!selected) {
+        alert("Selecciona un país de la lista de jurados.");
+        return;
+      }
+      if (confirm(`¿Eliminar la votación registrada del jurado de ${selected}?`)) {
+        db.ref('juryVotes').child(selected).remove().then(() => {
+          fetchAndRenderSplitTable();
+          alert(`Votos de jurado de ${selected} borrados.`);
         });
       }
     }
@@ -929,7 +1036,7 @@
       
       globalHistory.forEach((v, i) => {
         const originDisplay = v.originCountry || v.name || ('Votante ' + (i+1));
-        csvContent += `,${originDisplay} (${v.email} - ${v.age}a - ${v.lang} - IP:${v.ip})`;
+        csvContent += `,${originDisplay} (${v.email} - ${v.age}a - ${v.lang})`;
       });
       csvContent += ",TOTAL REAL,PROPORCIONAL (638 pts),PROP SIN AUTOVOTO (638 pts)\n";
 
