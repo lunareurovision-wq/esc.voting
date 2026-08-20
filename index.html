@@ -320,7 +320,8 @@
             </table>
           </div>
 
-          <h4 style="margin: 15px 0 0 0; color: var(--accent-green);">CLASIFICACIÓN GENERAL COMBINADA (Jury + Televoto)</h4>
+          <!-- TABLA 1: COMBINADA CON AUTOVOTO -->
+          <h4 style="margin: 15px 0 0 0; color: var(--accent-pink);">CLASIFICACIÓN GENERAL (Jury + Televoto Con Autovoto)</h4>
           <div class="table-wrapper">
             <table>
               <thead>
@@ -328,11 +329,40 @@
                   <th>Pos.</th>
                   <th>País</th>
                   <th>Jurado</th>
-                  <th>Televoto (Prop.)</th>
-                  <th style="color:var(--accent-green);">TOTAL COMBINADO</th>
+                  <th>Televoto (Con Autovoto 638pts)</th>
+                  <th style="color:var(--accent-pink);">TOTAL COMBINADO</th>
                 </tr>
               </thead>
-              <tbody id="combined-table-body"></tbody>
+              <tbody id="combined-with-selfvote-body"></tbody>
+            </table>
+          </div>
+
+          <!-- TABLA 2: COMBINADA SIN AUTOVOTO Y 50/50 -->
+          <h4 style="margin: 15px 0 0 0; color: var(--accent-green);">CLASIFICACIÓN GENERAL (Jury + Televoto Sin Autovoto 50/50)</h4>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Pos.</th>
+                  <th>País</th>
+                  <th>Jurado</th>
+                  <th>Televoto (Prop. Sin Autovoto)</th>
+                  <th>Televoto (Proporcional 50/50)</th>
+                  <th style="color:var(--accent-green);">TOTAL COMBINADO (50/50)</th>
+                </tr>
+              </thead>
+              <tbody id="combined-no-selfvote-body"></tbody>
+            </table>
+          </div>
+
+          <!-- TABLA 3: NUEVO SISTEMA (NEW SYSTEM) -->
+          <h4 style="margin: 15px 0 0 0; color: var(--accent-cyan);">NEW SYSTEM (Desglose por País: Jurado + Televoto 50/50)</h4>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr id="new-system-header"></tr>
+              </thead>
+              <tbody id="new-system-body"></tbody>
             </table>
           </div>
         </div>
@@ -617,10 +647,18 @@
       }
 
       if (juryPasswords[selectedCountry] && juryPasswords[selectedCountry] === passInput) {
-        playSound(700);
-        currentJuryCountry = selectedCountry;
-        closeJuryAuthModal();
-        startJuryVotingScreen();
+        // Verificar si este jurado ya ha emitido su voto en Firebase
+        db.ref('juryVotes').child(selectedCountry).once('value', snapshot => {
+          if (snapshot.exists()) {
+            playSound(200);
+            errorEl.innerText = `El jurado de ${selectedCountry} ya ha votado previamente. Si deseas cambiar tu voto, pide a un Staff que resetee tu votación.`;
+          } else {
+            playSound(700);
+            currentJuryCountry = selectedCountry;
+            closeJuryAuthModal();
+            startJuryVotingScreen();
+          }
+        });
       } else {
         playSound(200);
         errorEl.innerText = "Contraseña incorrecta para el país seleccionado.";
@@ -779,12 +817,13 @@
           globalJuryHistory = Object.values(snapshotJury.val() || {});
           renderSplitTable();
           renderJurySplitTable();
-          renderCombinedTable();
+          renderCombinedTables();
+          renderNewSystemTable();
         });
       });
     }
 
-    function calculateProportional638(totals, grandTotalSum) {
+    function calculateProportionalTarget(totals, grandTotalSum, targetPoints) {
       if (grandTotalSum === 0) return {};
       
       let exactPoints = {};
@@ -793,7 +832,7 @@
       let allocatedSum = 0;
 
       countries.forEach(c => {
-        let exact = (totals[c.name] / grandTotalSum) * 638;
+        let exact = (totals[c.name] / grandTotalSum) * targetPoints;
         exactPoints[c.name] = exact;
         let floorVal = Math.floor(exact);
         integerPoints[c.name] = floorVal;
@@ -801,7 +840,7 @@
         remainders.push({ name: c.name, rem: exact - floorVal });
       });
 
-      let remainingToAllocate = 638 - allocatedSum;
+      let remainingToAllocate = targetPoints - allocatedSum;
       remainders.sort((a, b) => b.rem - a.rem);
 
       for (let i = 0; i < remainingToAllocate; i++) {
@@ -809,6 +848,10 @@
       }
 
       return integerPoints;
+    }
+
+    function calculateProportional638(totals, grandTotalSum) {
+      return calculateProportionalTarget(totals, grandTotalSum, 638);
     }
 
     function renderSplitTable() {
@@ -904,13 +947,17 @@
       });
     }
 
-    function renderCombinedTable() {
-      const body = document.getElementById('combined-table-body');
-
+    function renderCombinedTables() {
+      // 1. Cálculos generales
+      let totalsReal = {};
       let totalsNoSelfVote = {};
+      let grandTotalReal = 0;
       let grandTotalNoSelfVote = 0;
 
       countries.forEach(c => {
+        totalsReal[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
+        grandTotalReal += totalsReal[c.name];
+
         totalsNoSelfVote[c.name] = globalHistory.reduce((sum, v) => {
           const voterOrigin = v.originCountry || v.name || '';
           if (voterOrigin.toLowerCase() === c.name.toLowerCase()) return sum;
@@ -919,32 +966,143 @@
         grandTotalNoSelfVote += totalsNoSelfVote[c.name];
       });
 
-      let telePropMap = calculateProportional638(totalsNoSelfVote, grandTotalNoSelfVote);
+      let totalJuryPointsDistributed = globalJuryHistory.length * 58; // 58 pts por jurado completo
 
-      let combinedData = countries.map(c => {
+      let propWithSelf638 = calculateProportionalTarget(totalsReal, grandTotalReal, 638);
+      let propNoSelf638 = calculateProportionalTarget(totalsNoSelfVote, grandTotalNoSelfVote, 638);
+      let propNoSelf5050 = calculateProportionalTarget(totalsNoSelfVote, grandTotalNoSelfVote, totalJuryPointsDistributed > 0 ? totalJuryPointsDistributed : 638);
+
+      // --- TABLA CON AUTOVOTO ---
+      const bodyWithSelf = document.getElementById('combined-with-selfvote-body');
+      let combinedWithSelf = countries.map(c => {
         let juryPts = globalJuryHistory.reduce((sum, j) => sum + (j.points ? (j.points[c.name] || 0) : 0), 0);
-        let telePts = telePropMap[c.name] || 0;
-        return {
-          name: c.name,
-          jury: juryPts,
-          tele: telePts,
-          total: juryPts + telePts
-        };
+        let telePts = propWithSelf638[c.name] || 0;
+        return { name: c.name, jury: juryPts, tele: telePts, total: juryPts + telePts };
       });
+      combinedWithSelf.sort((a, b) => b.total - a.total);
 
-      combinedData.sort((a, b) => b.total - a.total);
-
-      body.innerHTML = '';
-      combinedData.forEach((item, idx) => {
-        body.innerHTML += `
+      bodyWithSelf.innerHTML = '';
+      combinedWithSelf.forEach((item, idx) => {
+        bodyWithSelf.innerHTML += `
           <tr>
             <td><strong>#${idx + 1}</strong></td>
             <td><strong>${item.name}</strong></td>
             <td>${item.jury}</td>
             <td>${item.tele}</td>
+            <td style="color:var(--accent-pink); font-weight:800; font-size:1rem;">${item.total}</td>
+          </tr>
+        `;
+      });
+
+      // --- TABLA SIN AUTOVOTO Y 50/50 ---
+      const bodyNoSelf = document.getElementById('combined-no-selfvote-body');
+      let combinedNoSelf = countries.map(c => {
+        let juryPts = globalJuryHistory.reduce((sum, j) => sum + (j.points ? (j.points[c.name] || 0) : 0), 0);
+        let teleProp638 = propNoSelf638[c.name] || 0;
+        let teleProp5050 = propNoSelf5050[c.name] || 0;
+        return {
+          name: c.name,
+          jury: juryPts,
+          tele638: teleProp638,
+          tele5050: teleProp5050,
+          total: juryPts + teleProp5050
+        };
+      });
+      combinedNoSelf.sort((a, b) => b.total - a.total);
+
+      bodyNoSelf.innerHTML = '';
+      combinedNoSelf.forEach((item, idx) => {
+        bodyNoSelf.innerHTML += `
+          <tr>
+            <td><strong>#${idx + 1}</strong></td>
+            <td><strong>${item.name}</strong></td>
+            <td>${item.jury}</td>
+            <td>${item.tele638}</td>
+            <td style="color:var(--accent-cyan); font-weight:700;">${item.tele5050}</td>
             <td style="color:var(--accent-green); font-weight:800; font-size:1rem;">${item.total}</td>
           </tr>
         `;
+      });
+    }
+
+    function renderNewSystemTable() {
+      const header = document.getElementById('new-system-header');
+      const body = document.getElementById('new-system-body');
+
+      const votingBlocks = [
+        "Bulgaria", "Andorra", "Canada", "France", "Germany", 
+        "Iceland", "Latvia", "Norway", "UK", "Spain", "Sweden", "Rest of the World"
+      ];
+
+      header.innerHTML = '<th>País Participant</th>';
+      votingBlocks.forEach(b => {
+        header.innerHTML += `<th>${b}</th>`;
+      });
+      header.innerHTML += '<th style="color:var(--accent-cyan);">TOTAL NEW SYSTEM</th>';
+
+      // Agrupar votos del público por país de origen
+      let publicVotesByOrigin = {};
+      votingBlocks.forEach(b => publicVotesByOrigin[b] = {});
+
+      globalHistory.forEach(v => {
+        let orig = v.originCountry || "Rest of the World";
+        if (!votingBlocks.includes(orig)) orig = "Rest of the World";
+        
+        countries.forEach(c => {
+          if (!publicVotesByOrigin[orig][c.name]) publicVotesByOrigin[orig][c.name] = 0;
+          // Excluir autovoto
+          if (orig.toLowerCase() !== c.name.toLowerCase()) {
+            publicVotesByOrigin[orig][c.name] += (v.votes[c.name] || 0);
+          }
+        });
+      });
+
+      // Mapear jurado por país
+      let juryVotesByCountry = {};
+      globalJuryHistory.forEach(j => {
+        juryVotesByCountry[j.country] = j.points || {};
+      });
+
+      // Calcular la matriz del New System
+      let matrix = {};
+      let totalNewSystemMap = {};
+
+      countries.forEach(c => {
+        matrix[c.name] = {};
+        totalNewSystemMap[c.name] = 0;
+
+        votingBlocks.forEach(block => {
+          // 1. Jurado otorgado por este bloque al país c
+          let juryPts = (juryVotesByCountry[block] && juryVotesByCountry[block][c.name]) ? juryVotesByCountry[block][c.name] : 0;
+
+          // 2. Proporcional de televoto 50/50 otorgado por este bloque al país c
+          let origVotes = publicVotesByOrigin[block] || {};
+          let sumOrigVotes = Object.values(origVotes).reduce((a, b) => a + b, 0);
+          
+          let telePropPts = 0;
+          if (sumOrigVotes > 0) {
+            let teleMap = calculateProportionalTarget(origVotes, sumOrigVotes, 58);
+            telePropPts = teleMap[c.name] || 0;
+          }
+
+          let combinedBlockValue = juryPts + telePropPts;
+          matrix[c.name][block] = combinedBlockValue;
+          totalNewSystemMap[c.name] += combinedBlockValue;
+        });
+      });
+
+      let sortedCountries = [...countries].sort((a, b) => totalNewSystemMap[b.name] - totalNewSystemMap[a.name]);
+
+      body.innerHTML = '';
+      sortedCountries.forEach(c => {
+        let rowHtml = `<tr><td><strong>${c.name}</strong></td>`;
+
+        votingBlocks.forEach(block => {
+          rowHtml += `<td>${matrix[c.name][block]}</td>`;
+        });
+
+        rowHtml += `<td style="color:var(--accent-cyan); font-weight:800; font-size:1rem;">${totalNewSystemMap[c.name]}</td></tr>`;
+        body.innerHTML += rowHtml;
       });
     }
 
