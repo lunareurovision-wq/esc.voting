@@ -7,6 +7,7 @@
   <!-- SDK Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
     :root {
       --bg-gradient: linear-gradient(135deg, #0f0c20 0%, #1a103c 50%, #0f0c20 100%);
@@ -52,6 +53,21 @@
       transition: transform 0.1s;
     }
     .btn-main:active { transform: scale(0.96); }
+
+    .btn-google {
+      background: #ffffff;
+      color: #333333;
+      border: none;
+      padding: 10px 20px;
+      font-weight: 700;
+      border-radius: 25px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
 
     .instructions-box {
       background: rgba(0, 0, 0, 0.4);
@@ -184,18 +200,28 @@
     <button onclick="openStaffModal()" style="background:none; border:none; color: rgba(255,255,255,0.4); cursor:pointer; font-size: 0.8rem;">Staff</button>
   </div>
 
-  <!-- MODAL DE RESUMEN Y DATOS DEL VOTANTE -->
+  <!-- MODAL DE RESUMEN Y REGISTRO -->
   <div id="summary-modal" class="modal hidden">
     <div class="modal-box">
       <h3 style="margin-top:0; color:#ffffff;">Resumen de Votación</h3>
-      <p style="font-size:0.85rem; color:#cccccc;">Introduce tus datos para registrar el voto:</p>
       
-      <input type="email" id="voter-email" placeholder="Correo electrónico" required>
-      <input type="number" id="voter-age" placeholder="Edad" min="1" max="120" required>
+      <div id="auth-section">
+        <p style="font-size:0.85rem; color:#cccccc;">Inicia sesión con Google para verificar tu voto:</p>
+        <button class="btn-google" onclick="loginWithGoogle()">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18">
+          Continuar con Google
+        </button>
+      </div>
+
+      <div id="voter-details" class="hidden">
+        <p style="font-size:0.85rem; color:#00f0ff; font-weight:bold;" id="user-display-name"></p>
+        <input type="number" id="voter-age" placeholder="Tu Edad" min="1" max="120" required>
+      </div>
+
       <div id="summary-error" class="error-msg"></div>
 
-      <div id="summary-list" style="max-height: 180px; overflow-y: auto; margin: 12px 0;"></div>
-      <button class="btn-main" style="width:100%;" onclick="submitVote()">Confirmar Voto</button>
+      <div id="summary-list" style="max-height: 160px; overflow-y: auto; margin: 12px 0;"></div>
+      <button class="btn-main" id="btn-submit-vote" style="width:100%;" onclick="submitVote()" disabled>Confirmar Voto</button>
       <button class="btn-secondary" style="width:100%; margin-top:8px;" onclick="closeSummaryModal()">Volver</button>
     </div>
   </div>
@@ -210,7 +236,7 @@
         <button onclick="closeStaffModal()" class="btn-secondary" style="width:100%; margin-top:8px;">Cancelar</button>
       </div>
       <div id="staff-results" class="hidden" style="display: flex; flex-direction: column; height: 100%;">
-        <h3 style="margin: 0; color: #ffffff;">Desglose de Votaciones (Ordenado por Total)</h3>
+        <h3 style="margin: 0; color: #ffffff;">Desglose de Votaciones (Ajustado a 638 pts)</h3>
         <div class="table-wrapper">
           <table id="split-table">
             <thead><tr id="table-header"></tr></thead>
@@ -227,7 +253,6 @@
   </div>
 
   <script>
-    // Configuración de tu proyecto eurovision-votos
     const firebaseConfig = {
       apiKey: "AIzaSyCaPYwjRxUib9NFAtNyrAqY2Ie3gd0B32U",
       authDomain: "eurovision-votos.firebaseapp.com",
@@ -236,9 +261,9 @@
       storageBucket: "eurovision-votos.appspot.com"
     };
     
-    // Inicializar Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    const auth = firebase.auth();
 
     const countries = [
       { id: "01", name: "Bulgaria", code: "bg", song: "Луда", artist: "NICKA", image: "https://www.loud-mag.com/wp-content/uploads/2025/04/orig-2.jpg" },
@@ -257,6 +282,14 @@
     let votes = {};
     let currentLang = 'es';
     let globalHistory = [];
+    let currentUser = null;
+    let userIP = 'Obteniendo...';
+
+    // Obtener IP pública del votante
+    fetch('https://api.ipify.org?format=json')
+      .then(res => res.json())
+      .then(data => userIP = data.ip)
+      .catch(() => userIP = 'Desconocida');
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playSound(freq) {
@@ -271,24 +304,9 @@
     }
 
     const translations = {
-      es: {
-        instr: "Debes repartir exactamente 20 votos entre un mínimo de 4 países.",
-        rem: "Votos restantes: ",
-        errMin: "Debes votar al menos a 4 países diferentes.",
-        errTotal: "Debes repartir exactamente los 20 votos."
-      },
-      en: {
-        instr: "You must distribute exactly 20 votes among at least 4 countries.",
-        rem: "Remaining votes: ",
-        errMin: "You must vote for at least 4 different countries.",
-        errTotal: "You must distribute exactly 20 votes."
-      },
-      fr: {
-        instr: "Vous devez distribuer exactement 20 votes entre au moins 4 pays.",
-        rem: "Votes restants: ",
-        errMin: "Vous devez voter pour au moins 4 pays différents.",
-        errTotal: "Vous devez distribuer exactement les 20 votes."
-      }
+      es: { instr: "Debes repartir exactamente 20 votos entre un mínimo de 4 países.", rem: "Votos restantes: ", errMin: "Debes votar al menos a 4 países diferentes.", errTotal: "Debes repartir exactamente los 20 votos." },
+      en: { instr: "You must distribute exactly 20 votes among at least 4 countries.", rem: "Remaining votes: ", errMin: "You must vote for at least 4 different countries.", errTotal: "You must distribute exactly 20 votes." },
+      fr: { instr: "Vous devez distribuer exactamente 20 votes entre au moins 4 pays.", rem: "Votes restants: ", errMin: "Vous devez voter pour au moins 4 pays différents.", errTotal: "Vous devez distribuer exactamente les 20 votes." }
     };
 
     function goToLanguage() {
@@ -355,19 +373,23 @@
     }
 
     function openSummaryModal() {
+      // Regla local anti-duplicados
+      if (localStorage.getItem('esc_voted')) {
+        alert("Ya has registrado un voto desde este navegador.");
+        return;
+      }
+
       const activeCountries = Object.values(votes).filter(v => v > 0).length;
       const totalVotes = Object.values(votes).reduce((a, b) => a + b, 0);
       const errorEl = document.getElementById('error-display');
 
       if (activeCountries < 4) {
         errorEl.innerText = translations[currentLang].errMin;
-        playSound(200);
-        return;
+        playSound(200); return;
       }
       if (totalVotes !== 20) {
         errorEl.innerText = translations[currentLang].errTotal;
-        playSound(200);
-        return;
+        playSound(200); return;
       }
       errorEl.innerText = '';
       playSound(800);
@@ -392,13 +414,25 @@
 
     function closeSummaryModal() { document.getElementById('summary-modal').classList.add('hidden'); }
 
+    function loginWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).then(result => {
+        currentUser = result.user;
+        document.getElementById('auth-section').classList.add('hidden');
+        document.getElementById('voter-details').classList.remove('hidden');
+        document.getElementById('user-display-name').innerText = `Sesión iniciada: ${currentUser.displayName} (${currentUser.email})`;
+        document.getElementById('btn-submit-vote').disabled = false;
+      }).catch(err => {
+        document.getElementById('summary-error').innerText = "Error al iniciar sesión con Google.";
+      });
+    }
+
     function submitVote() {
-      const email = document.getElementById('voter-email').value.trim().toLowerCase();
       const age = document.getElementById('voter-age').value.trim();
       const summaryErr = document.getElementById('summary-error');
 
-      if (!email || !email.includes('@')) {
-        summaryErr.innerText = "Introduce un correo electrónico válido.";
+      if (!currentUser) {
+        summaryErr.innerText = "Debes iniciar sesión con Google.";
         playSound(200); return;
       }
       if (!age || age < 1 || age > 120) {
@@ -408,22 +442,26 @@
 
       db.ref('votes').once('value', snapshot => {
         const data = snapshot.val() || {};
-        const emails = Object.values(data).map(v => v.email);
+        const voters = Object.values(data);
 
-        if (emails.includes(email)) {
-          summaryErr.innerText = "Este correo electrónico ya ha emitido un voto.";
+        // Control doble de voto por correo
+        if (voters.some(v => v.email === currentUser.email)) {
+          summaryErr.innerText = "Este correo ya ha emitido un voto previamente.";
           playSound(200);
           return;
         }
 
         const newVoteRef = db.ref('votes').push();
         newVoteRef.set({
-          email: email,
+          name: currentUser.displayName,
+          email: currentUser.email,
           age: age,
           lang: currentLang.toUpperCase(),
+          ip: userIP,
           votes: votes,
           timestamp: Date.now()
         }).then(() => {
+          localStorage.setItem('esc_voted', 'true');
           playSound(900);
           alert("¡Gracias por votar / Thank you for voting!");
           location.reload();
@@ -466,20 +504,25 @@
       
       header.innerHTML = '<th>País</th>';
       globalHistory.forEach((v, index) => {
-        header.innerHTML += `<th title="${v.email} (${v.age} años)">Votante ${index + 1} (${v.lang})</th>`;
+        header.innerHTML += `<th title="${v.name} | ${v.email} | IP: ${v.ip}">${v.name || 'Votante ' + (index+1)} (${v.age}a - ${v.lang})</th>`;
       });
-      header.innerHTML += '<th>TOTAL</th>';
+      header.innerHTML += '<th>TOTAL REAL</th><th style="color:var(--accent-pink);">PROP. (638 pts)</th>';
 
       let totals = {};
+      let grandTotalSum = 0;
       countries.forEach(c => {
         totals[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
+        grandTotalSum += totals[c.name];
       });
 
       let sortedCountries = [...countries].sort((a, b) => totals[b.name] - totals[a.name]);
 
       body.innerHTML = '';
       sortedCountries.forEach(c => {
-        let total = totals[c.name];
+        let totalReal = totals[c.name];
+        // Cálculo proporcional a 638 puntos
+        let prop638 = grandTotalSum > 0 ? ((totalReal / grandTotalSum) * 638).toFixed(1) : 0;
+
         let rowHtml = `<tr><td><strong>${c.name}</strong></td>`;
         
         globalHistory.forEach(v => {
@@ -487,7 +530,8 @@
           rowHtml += `<td>${val}</td>`;
         });
 
-        rowHtml += `<td style="color:var(--accent-cyan); font-weight:700;">${total}</td></tr>`;
+        rowHtml += `<td style="color:var(--accent-cyan); font-weight:700;">${totalReal}</td>`;
+        rowHtml += `<td style="color:var(--accent-pink); font-weight:700;">${prop638}</td></tr>`;
         body.innerHTML += rowHtml;
       });
     }
@@ -505,23 +549,26 @@
     function exportCSV() {
       let csvContent = "data:text/csv;charset=utf-8,Pais";
       
-      globalHistory.forEach((v, i) => csvContent += `,Votante ${i + 1} (${v.lang}) - ${v.email} (${v.age}a)`);
-      csvContent += ",TOTAL\n";
+      globalHistory.forEach((v, i) => csvContent += `,${v.name || 'Votante ' + (i+1)} (${v.email} - ${v.age}a - ${v.lang} - IP:${v.ip})`);
+      csvContent += ",TOTAL REAL,PROPORCIONAL (638 pts)\n";
 
       let totals = {};
+      let grandTotalSum = 0;
       countries.forEach(c => {
         totals[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
+        grandTotalSum += totals[c.name];
       });
       let sortedCountries = [...countries].sort((a, b) => totals[b.name] - totals[a.name]);
 
       sortedCountries.forEach(c => {
-        let total = totals[c.name];
+        let totalReal = totals[c.name];
+        let prop638 = grandTotalSum > 0 ? ((totalReal / grandTotalSum) * 638).toFixed(1) : 0;
         let line = `${c.name}`;
         globalHistory.forEach(v => {
           const val = v.votes[c.name] || 0;
           line += `,${val}`;
         });
-        line += `,${total}\n`;
+        line += `,${totalReal},${prop638}\n`;
         csvContent += line;
       });
 
