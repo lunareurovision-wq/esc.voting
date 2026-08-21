@@ -31,7 +31,7 @@
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 
     body {
-      background-image: url('https://media.discordapp.net/attachments/1364266851097645196/1539796410927423528/image.png?ex=6a879ea8&is=6a864d28&hm=e7a8d88a4eaada1be30068104fe5e8da7777f6aca54f8b78d84bc65fc3de90ff&=&format=webp&quality=lossless');
+      background-image: url("ESC_2027_15.png");
       background-size: cover;
       background-position: center;
       background-attachment: fixed;
@@ -46,11 +46,21 @@
 
     @media (max-width: 767px) {
       body {
-        background-image: url('https://media.discordapp.net/attachments/1364266851097645196/1539798590975643708/image.png?ex=6a87a0b0&is=6a864f30&hm=a6ea476efc32d101bc02e32d693f202c447100dccb2bda4f12a6c1d0606bd33e&=&format=webp&quality=lossless');
+        background-image: url("image.png");
       }
     }
 
-    .screen { width: 100%; max-width: 600px; text-align: center; }
+    .screen { 
+  width: 100%; 
+  max-width: 600px; 
+  text-align: center;
+  /* Añade estas líneas para centrar verticalmente: */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh; 
+}
     .hidden { display: none !important; }
 
     .logo-container { margin: 15px 0 25px; }
@@ -194,7 +204,7 @@
   <!-- PANTALLA 1: BIENVENIDA -->
   <div id="screen-welcome" class="screen">
     <div class="logo-container">
-      <img src="https://media.discordapp.net/attachments/844267329092059216/1539512421855793192/ESC_LOGO_WHITE.png?ex=6a873eec&is=6a85ed6c&hm=7099df4de0d85f97adb57877b86c088df0c8ac78ba1e1067416653881831b7c8&=&format=webp&quality=lossless" class="main-logo" alt="Eurovision Logo">
+      <img src="ESC_LOGO_WHITE.png" class="main-logo" alt="Eurovision Logo">
     </div>
     <button class="btn-main" onclick="goToLanguage()">Vote Now</button>
   </div>
@@ -1245,14 +1255,4 @@
         csvContent += line;
       });
 
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "desglose_eurovision.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  </script>
-</body>
-</html>
+      c
