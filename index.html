@@ -194,8 +194,8 @@ th { background: rgba(255, 255, 255, 0.1); font-weight: 700; position: sticky; t
 </head>
 <body>
 
-<!-- PANTALLA 1: BIENVENIDA / DISCORD LOGIN -->
-<div id="screen-welcome" class="screen">
+<!-- PANTALLA 1: WELCOME DISCORD (OCULTA POR DEFECTO) -->
+<div id="screen-welcome" class="screen hidden">
   <div class="logo-container">
     <img src="ESC_LOGO_WHITE.png" class="main-logo" alt="Eurovision Logo">
   </div>
@@ -206,7 +206,7 @@ th { background: rgba(255, 255, 255, 0.1); font-weight: 700; position: sticky; t
   </button>
 </div>
 
-<!-- PANTALLA 2: IDIOMA -->
+<!-- PANTALLA 2: IDIOMA (OCULTA POR DEFECTO) -->
 <div id="screen-language" class="screen hidden">
   <div id="discord-user-info" class="user-badge"></div>
   <h2 style="margin-bottom: 25px; color: #ffffff;">Select Language</h2>
@@ -215,8 +215,8 @@ th { background: rgba(255, 255, 255, 0.1); font-weight: 700; position: sticky; t
   <button class="btn-main" style="display:block; width: 100%; margin: 10px 0;" onclick="selectLanguage('fr')">Français</button>
 </div>
 
-<!-- PANTALLA 3: VOTACIÓN PÚBLICA -->
-<div id="screen-voting" class="screen hidden">
+<!-- PANTALLA 3: VOTACIÓN PÚBLICA (MOSTRADA DIRECTAMENTE AL ENTRAR) -->
+<div id="screen-voting" class="screen">
   <div id="discord-user-info-voting" class="user-badge"></div>
   <div class="instructions-box" id="instruction-text"></div>
   <div id="counter-status" class="counter-badge"></div>
@@ -259,7 +259,7 @@ th { background: rgba(255, 255, 255, 0.1); font-weight: 700; position: sticky; t
     </select>
     <input type="password" id="jury-pass" placeholder="Contraseña de Jurado">
     <div id="jury-auth-error" class="error-msg"></div>
-    <button class="btn-main" style="width:100%;" onclick="checkJuryPass()">Acceder a Votar</button>
+    <button class="btn-main" style="width: 100%;" onclick="checkJuryPass()">Acceder a Votar</button>
     <button onclick="closeJuryAuthModal()" class="btn-secondary" style="width:100%; margin-top:8px;">Cancelar</button>
   </div>
 </div>
@@ -352,7 +352,7 @@ th { background: rgba(255, 255, 255, 0.1); font-weight: 700; position: sticky; t
             <tbody id="combined-no-selfvote-body"></tbody>
           </table>
         </div>
-        <h4 style="margin: 15px 0 0 0; color: var(--accent-cyan);">NEW SYSTEM (Desglose por País: Jurado + Televoto 50/50)</h4>
+        <h4 style="margin: 15px 0 0 0; color: var(--accent-cyan);">NEW SYSTEM (Desglose por País: Jurado + Televoto Dinámico)</h4>
         <div class="table-wrapper">
           <table>
             <thead><tr id="new-system-header"></tr></thead>
@@ -431,6 +431,7 @@ db.ref('votingStatus/public').on('value', snapshot => {
   updateVotingUI();
   updateStaffButtons();
 });
+
 db.ref('votingStatus/jury').on('value', snapshot => {
   juryVotingOpen = snapshot.val() === true;
   updateStaffButtons();
@@ -446,11 +447,12 @@ const juryPasswords = {
   "UK": "Laelenaadekalle1394",
   "France": "alexdivi5",
   "Canada": "Kitgato2020",
-  "Bulgaria": "MariaTere012",
+  "Bulgaria": "Maria Tere012",
   "Norway": "Kaanafo"
 };
 
 const pointScale = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1];
+
 const countries = [
   { id: "01", name: "Bulgaria", code: "bg", song: "Луда", artist: "NICKA", image: "https://www.loud-mag.com/wp-content/uploads/2025/04/orig-2.jpg" },
   { id: "02", name: "Andorra", code: "ad", song: "SELENA", artist: "Daniela Blasco", image: "https://images.genius.com/b01e3d9cb9c2aaf0f1d6608ed61c254b.1000x1000x1.jpg" },
@@ -490,49 +492,37 @@ function playSound(freq) {
   osc.start(); osc.stop(audioCtx.currentTime + 0.1);
 }
 
-// TEXTOS AJUSTADOS A 10 VOTOS
 const translations = {
   es: { instr: "Debes repartir exactamente 10 votos entre un mínimo de 6 países.", rem: "Votos restantes: ", errMin: "Debes votar al menos a 6 países diferentes.", errTotal: "Debes repartir exactamente los 10 votos." },
   en: { instr: "You must distribute exactly 10 votes among at least 6 countries.", rem: "Remaining votes: ", errMin: "You must vote for at least 6 different countries.", errTotal: "You must distribute exactly 10 votes." },
   fr: { instr: "Vous devez distribuer exactamente 10 votes entre au moins 6 pays.", rem: "Votes restants: ", errMin: "Vous devez voter pour au moins 6 pays différents.", errTotal: "Vous devez distribuer exactamente les 10 votes." }
 };
 
-// FLUJO AUTENTICACIÓN DISCORD
-function loginWithDiscord() {
-  playSound(500);
-  const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=identify`;
-  window.location.href = discordUrl;
-}
-
+// INICIALIZACIÓN DIRECTA Y MANEJO DE DISCORD
 window.addEventListener('DOMContentLoaded', () => {
+  initVoting(); // Inicializar interfaz de votación en pantalla principal directamente
+
   const fragment = new URLSearchParams(window.location.hash.slice(1));
   const accessToken = fragment.get('access_token');
-
   if (accessToken) {
     fetch('https://discord.com/api/v8/users/@me', {
       headers: { authorization: `Bearer ${accessToken}` }
     })
     .then(res => res.json())
     .then(discordUser => {
-      const username = (discordUser.username || '').toLowerCase();
+      const username = (discordUser.username || "").toLowerCase();
       const country = userToCountry[username] || "Rest of the World";
-      
       currentDiscordUser = {
         id: discordUser.id,
         username: discordUser.username,
         country: country
       };
-
-      // Limpiar el hash de la URL sin recargar
-      history.replaceState(null, null, ' ');
-
-      // Avanzar automáticamente a selección de idioma
-      document.getElementById('screen-welcome').classList.add('hidden');
-      document.getElementById('screen-language').classList.remove('hidden');
-
+      history.replaceState(null, null, '');
       const userBadgeText = `Discord: @${currentDiscordUser.username} (${currentDiscordUser.country})`;
-      document.getElementById('discord-user-info').innerText = userBadgeText;
       document.getElementById('discord-user-info-voting').innerText = userBadgeText;
+      
+      // Abrir resumen si venimos redirigidos del login
+      openSummaryModal();
     })
     .catch(() => {
       alert("Error al autenticar con Discord.");
@@ -540,33 +530,19 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-function goToLanguage() {
-  if (!currentDiscordUser) {
-    alert("Inicia sesión con Discord para continuar.");
-    return;
-  }
+function loginWithDiscord() {
   playSound(500);
-  document.getElementById('screen-welcome').classList.add('hidden');
-  document.getElementById('screen-language').classList.remove('hidden');
-}
-
-function selectLanguage(lang) {
-  playSound(600);
-  currentLang = lang;
-  document.getElementById('screen-language').classList.add('hidden');
-  document.getElementById('screen-voting').classList.remove('hidden');
-  initVoting();
+  const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=identify`;
+  window.location.href = discordUrl;
 }
 
 function initVoting() {
   document.getElementById('instruction-text').innerText = translations[currentLang].instr;
   const listContainer = document.getElementById('country-list');
   listContainer.innerHTML = '';
-  
   countries.forEach(c => {
     votes[c.name] = 0;
     const isSelfCountry = currentDiscordUser && (c.name.toLowerCase() === currentDiscordUser.country.toLowerCase());
-    
     const card = document.createElement('div');
     card.className = 'country-card';
     card.innerHTML = `
@@ -597,18 +573,14 @@ function changeVote(country, delta) {
     alert("Voting Closed");
     return;
   }
-
-  // RESTRICCIÓN DE AUTOVOTO
   if (delta > 0 && currentDiscordUser && (country.toLowerCase() === currentDiscordUser.country.toLowerCase())) {
     playSound(200);
     alert("No puedes votar por tu propio país.");
     return;
   }
-
-  const totalUsed = Object.values(votes).reduce((a, b) => a + b, 0);
-  if (delta > 0 && totalUsed >= 10) return; // AJUSTADO A 10
+  const totalUsed = Object.values(votes).reduce((a,b)=>a+b,0);
+  if (delta > 0 && totalUsed >= 10) return;
   if (votes[country] + delta < 0) return;
-
   votes[country] += delta;
   document.getElementById(`count-${country}`).innerText = votes[country];
   playSound(delta > 0 ? 700 : 350);
@@ -617,7 +589,7 @@ function changeVote(country, delta) {
 
 function updateCounterDisplay() {
   const totalUsed = Object.values(votes).reduce((a, b) => a + b, 0);
-  document.getElementById('counter-status').innerText = `${translations[currentLang].rem} ${10 - totalUsed}`; // AJUSTADO A 10
+  document.getElementById('counter-status').innerText = `${translations[currentLang].rem} ${10 - totalUsed}`;
 }
 
 function updateVotingUI() {
@@ -638,8 +610,10 @@ function openSummaryModal() {
     alert("Voting Closed");
     return;
   }
+  
+  // SOLICITAR INICIO DE SESIÓN SI NO HA INICIADO SESIÓN
   if (!currentDiscordUser) {
-    alert("Debes iniciar sesión con Discord.");
+    loginWithDiscord();
     return;
   }
 
@@ -651,32 +625,30 @@ function openSummaryModal() {
     errorEl.innerText = translations[currentLang].errMin;
     playSound(200); return;
   }
-  if (totalVotes !== 10) { // AJUSTADO A 10
+  if (totalVotes !== 10) {
     errorEl.innerText = translations[currentLang].errTotal;
     playSound(200); return;
   }
 
-  errorEl.innerText = '';
+  errorEl.innerText = "";
   playSound(800);
-
   document.getElementById('voter-discord-tag').innerText = `@${currentDiscordUser.username}`;
   document.getElementById('voter-country-tag').innerText = currentDiscordUser.country;
 
   const summaryList = document.getElementById('summary-list');
-  summaryList.innerHTML = '';
+  summaryList.innerHTML = "";
   countries.forEach(c => {
     if (votes[c.name] > 0) {
       summaryList.innerHTML += `
-        <div class="summary-card">
-          <div class="summary-info">
-            <img src="https://flagcdn.com/w40/${c.code}.png" class="summary-flag">
-            <span style="font-weight:700; font-size:0.9rem;">${c.name}</span>
-          </div>
-          <strong style="color:var(--accent-cyan);">${votes[c.name]} votos</strong>
-        </div>`;
+      <div class="summary-card">
+        <div class="summary-info">
+          <img src="https://flagcdn.com/w40/${c.code}.png" class="summary-flag">
+          <span style="font-weight:700; font-size:0.9rem;">${c.name}</span>
+        </div>
+        <strong style="color:var(--accent-cyan);">${votes[c.name]} votos</strong>
+      </div>`;
     }
   });
-
   document.getElementById('summary-modal').classList.remove('hidden');
 }
 
@@ -701,7 +673,6 @@ function submitVote() {
     const data = snapshot.val() || {};
     const voters = Object.values(data);
 
-    // Validación por ID de Discord
     if (voters.some(v => v.discordId === currentDiscordUser.id)) {
       summaryErr.innerText = "Esta cuenta de Discord ya ha votado previamente.";
       playSound(200); return;
@@ -773,6 +744,7 @@ function startJuryVotingScreen() {
   document.getElementById('screen-voting').classList.add('hidden');
   document.getElementById('screen-jury-voting').classList.remove('hidden');
   document.getElementById('jury-country-title').innerText = currentJuryCountry;
+
   juryOrderList = countries.filter(c => c.name.toLowerCase() !== currentJuryCountry.toLowerCase());
   renderJuryDragList();
 }
@@ -890,6 +862,7 @@ function openStaffModal() {
   document.getElementById('staff-results').classList.add('hidden');
   document.getElementById('staff-modal').classList.remove('hidden');
 }
+
 function closeStaffModal() {
   document.getElementById('staff-modal').classList.add('hidden');
 }
@@ -957,6 +930,7 @@ function calculateProportionalTarget(totals, grandTotalSum, targetPoints) {
 
   let remainingToAllocate = targetPoints - allocatedSum;
   remainders.sort((a, b) => b.rem - a.rem);
+
   for (let i = 0; i < remainingToAllocate; i++) {
     integerPoints[remainders[i].name] += 1;
   }
@@ -971,7 +945,6 @@ function renderSplitTable() {
   const header = document.getElementById('table-header');
   const body = document.getElementById('table-body');
   header.innerHTML = '<th>País</th>';
-
   globalHistory.forEach((v, index) => {
     const originDisplay = v.originCountry || v.discordUser || ('Votante ' + (index+1));
     header.innerHTML += `<th title="User: ${v.discordUser || 'Anon'}">${originDisplay} (${v.lang || 'ES'})</th>`;
@@ -986,8 +959,9 @@ function renderSplitTable() {
   countries.forEach(c => {
     totalsReal[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
     grandTotalReal += totalsReal[c.name];
+
     totalsNoSelfVote[c.name] = globalHistory.reduce((sum, v) => {
-      const voterOrigin = v.originCountry || '';
+      const voterOrigin = v.originCountry || "";
       if (voterOrigin.toLowerCase() === c.name.toLowerCase()) return sum;
       return sum + (v.votes[c.name] || 0);
     }, 0);
@@ -996,22 +970,21 @@ function renderSplitTable() {
 
   let propPointsReal = calculateProportional638(totalsReal, grandTotalReal);
   let propPointsNoSelfVote = calculateProportional638(totalsNoSelfVote, grandTotalNoSelfVote);
-  let sortedCountries = [...countries].sort((a, b) => totalsReal[b.name] - totalsReal[a.name]);
 
+  let sortedCountries = [...countries].sort((a, b) => totalsReal[b.name] - totalsReal[a.name]);
   body.innerHTML = '';
   sortedCountries.forEach(c => {
     let totalReal = totalsReal[c.name];
     let prop638 = propPointsReal[c.name] || 0;
     let prop638NoSelf = propPointsNoSelfVote[c.name] || 0;
-    let rowHtml = `<tr><td><strong>${c.name}</strong></td>`;
 
+    let rowHtml = `<tr><td><strong>${c.name}</strong></td>`;
     globalHistory.forEach(v => {
       const val = v.votes[c.name] || 0;
-      const voterOrigin = v.originCountry || '';
+      const voterOrigin = v.originCountry || "";
       const isSelfVote = (voterOrigin.toLowerCase() === c.name.toLowerCase() && val > 0);
       rowHtml += isSelfVote ? `<td style="color:#ff3366;" title="Autovoto excluido">${val}*</td>` : `<td>${val}</td>`;
     });
-
     rowHtml += `<td style="color:var(--accent-cyan); font-weight:700;">${totalReal}</td>`;
     rowHtml += `<td style="color:var(--accent-pink); font-weight:700;">${prop638}</td>`;
     rowHtml += `<td style="color:var(--accent-green); font-weight:700;">${prop638NoSelf}</td></tr>`;
@@ -1023,7 +996,6 @@ function renderJurySplitTable() {
   const header = document.getElementById('jury-table-header');
   const body = document.getElementById('jury-table-body');
   header.innerHTML = '<th>País</th>';
-
   globalJuryHistory.forEach(j => { header.innerHTML += `<th>${j.country}</th>`; });
   header.innerHTML += '<th style="color:var(--accent-cyan);">TOTAL JURADO</th>';
 
@@ -1054,8 +1026,9 @@ function renderCombinedTables() {
   countries.forEach(c => {
     totalsReal[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
     grandTotalReal += totalsReal[c.name];
+
     totalsNoSelfVote[c.name] = globalHistory.reduce((sum, v) => {
-      const voterOrigin = v.originCountry || '';
+      const voterOrigin = v.originCountry || "";
       if (voterOrigin.toLowerCase() === c.name.toLowerCase()) return sum;
       return sum + (v.votes[c.name] || 0);
     }, 0);
@@ -1110,21 +1083,32 @@ function renderCombinedTables() {
   });
 }
 
+// NUEVA LÓGICA REVISADA DE RENDER NEW SYSTEM
 function renderNewSystemTable() {
   const header = document.getElementById('new-system-header');
   const body = document.getElementById('new-system-body');
-  const votingBlocks = ["Bulgaria", "Andorra", "Canada", "France", "Germany", "Iceland", "Latvia", "Norway", "UK", "Spain", "Sweden", "Rest of the World"];
+  const votingBlocks = ["Bulgaria", "Andorra", "Canada", "France", "Germany", "Iceland", 
+                        "Latvia", "Norway", "UK", "Spain", "Sweden", "Rest of the World"];
 
-  header.innerHTML = '<th>País Participant</th>';
+  header.innerHTML = '<th>País Participante</th>';
   votingBlocks.forEach(b => { header.innerHTML += `<th>${b}</th>`; });
   header.innerHTML += '<th style="color:var(--accent-cyan);">TOTAL NEW SYSTEM</th>';
 
   let publicVotesByOrigin = {};
-  votingBlocks.forEach(b => publicVotesByOrigin[b] = {});
+  let usersCountByOrigin = {};
 
+  votingBlocks.forEach(b => {
+    publicVotesByOrigin[b] = {};
+    usersCountByOrigin[b] = 0;
+  });
+
+  // Agrupar votos y contabilizar usuarios individuales
   globalHistory.forEach(v => {
     let orig = v.originCountry || "Rest of the World";
     if (!votingBlocks.includes(orig)) orig = "Rest of the World";
+
+    usersCountByOrigin[orig] += 1;
+
     countries.forEach(c => {
       if (!publicVotesByOrigin[orig][c.name]) publicVotesByOrigin[orig][c.name] = 0;
       if (orig.toLowerCase() !== c.name.toLowerCase()) {
@@ -1142,15 +1126,32 @@ function renderNewSystemTable() {
   countries.forEach(c => {
     matrix[c.name] = {};
     totalNewSystemMap[c.name] = 0;
+
     votingBlocks.forEach(block => {
-      let juryPts = (juryVotesByCountry[block] && juryVotesByCountry[block][c.name]) ? juryVotesByCountry[block][c.name] : 0;
+      // Puntos del jurado para esta celda
+      let juryPts = (juryVotesByCountry[block] && juryVotesByCountry[block][c.name]) ? 
+                    juryVotesByCountry[block][c.name] : 0;
+      
+      // Proyección dinámica del televoto
+      let targetTelePoints = 0;
+      if (block === "Rest of the World") {
+        // Multiplica 58 puntos por cada usuario registrado en ROW
+        targetTelePoints = usersCountByOrigin["Rest of the World"] * 58;
+      } else {
+        // Equivale dinámicamente a los puntos otorgados por el jurado del bloque
+        let jurySumOfThisCountry = Object.values(juryVotesByCountry[block] || {}).reduce((a, b) => a + b, 0);
+        targetTelePoints = jurySumOfThisCountry;
+      }
+
       let origVotes = publicVotesByOrigin[block] || {};
-      let sumOrigVotes = Object.values(origVotes).reduce((a,b)=>a+b,0);
+      let sumOrigVotes = Object.values(origVotes).reduce((a, b) => a + b, 0);
       let telePropPts = 0;
-      if (sumOrigVotes > 0) {
-        let teleMap = calculateProportionalTarget(origVotes, sumOrigVotes, 58);
+
+      if (sumOrigVotes > 0 && targetTelePoints > 0) {
+        let teleMap = calculateProportionalTarget(origVotes, sumOrigVotes, targetTelePoints);
         telePropPts = teleMap[c.name] || 0;
       }
+
       let combinedBlockValue = juryPts + telePropPts;
       matrix[c.name][block] = combinedBlockValue;
       totalNewSystemMap[c.name] += combinedBlockValue;
@@ -1188,11 +1189,12 @@ function copyJuryVotes() {
   globalJuryHistory.forEach((j, idx) => {
     let countryUpper = (countryNameMap[j.country] || j.country).toUpperCase();
     let ordinal = getOrdinalSuffix(idx + 1);
+
     formattedOutput += '\t\t{\n';
     formattedOutput += `\t\t\t["Country"] = "${countryUpper}",\n`;
     formattedOutput += `\t\t\t["Name"] = "${ordinal} OF ${totalJuries} COUNTRIES",\n`;
     formattedOutput += '\t\t\t["Background"] = "rbxassetid://-",\n';
-    
+
     let ptsMap = j.points || {};
     let sortedPoints = Object.keys(ptsMap)
       .map(cName => ({ name: cName, pts: ptsMap[cName] }))
@@ -1251,7 +1253,7 @@ function exportCSV() {
     const originDisplay = v.originCountry || v.discordUser || ('Votante ' + (i+1));
     csvContent += `,${originDisplay}(${v.discordUser}-${v.lang})`;
   });
-  csvContent += ",TOTAL REAL,PROPORCIONAL (638 pts),PROP SIN AUTOVOTO (638 pts)\n";
+  csvContent += ",TOTAL REAL, PROPORCIONAL (638 pts), PROP SIN AUTOVOTO (638 pts)\n";
 
   let totalsReal = {};
   let totalsNoSelfVote = {};
@@ -1261,8 +1263,9 @@ function exportCSV() {
   countries.forEach(c => {
     totalsReal[c.name] = globalHistory.reduce((sum, v) => sum + (v.votes[c.name] || 0), 0);
     grandTotalReal += totalsReal[c.name];
+
     totalsNoSelfVote[c.name] = globalHistory.reduce((sum, v) => {
-      const voterOrigin = v.originCountry || '';
+      const voterOrigin = v.originCountry || "";
       if (voterOrigin.toLowerCase() === c.name.toLowerCase()) return sum;
       return sum + (v.votes[c.name] || 0);
     }, 0);
@@ -1271,12 +1274,13 @@ function exportCSV() {
 
   let propPointsReal = calculateProportional638(totalsReal, grandTotalReal);
   let propPointsNoSelfVote = calculateProportional638(totalsNoSelfVote, grandTotalNoSelfVote);
-  let sortedCountries = [...countries].sort((a, b) => totalsReal[b.name] - totalsReal[a.name]);
 
+  let sortedCountries = [...countries].sort((a, b) => totalsReal[b.name] - totalsReal[a.name]);
   sortedCountries.forEach(c => {
     let totalReal = totalsReal[c.name];
     let prop638 = propPointsReal[c.name] || 0;
     let prop638NoSelf = propPointsNoSelfVote[c.name] || 0;
+
     let line = `${c.name}`;
     globalHistory.forEach(v => {
       const val = v.votes[c.name] || 0;
