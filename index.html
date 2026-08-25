@@ -1111,60 +1111,98 @@ function renderCombinedTables() {
 }
 
 function renderNewSystemTable() {
-  const header = document.getElementById('new-system-header');
-  const body = document.getElementById('new-system-body');
-  const votingBlocks = ["Bulgaria", "Andorra", "Canada", "France", "Germany", "Iceland", "Latvia", "Norway", "UK", "Spain", "Sweden", "Rest of the World"];
+    const header = document.getElementById('new-system-header');
+    const body = document.getElementById('new-system-body');
+    const votingBlocks = ["Bulgaria", "Andorra", "Canada", "France", "Germany", "Iceland", "Latvia", "Norway", "UK", "Spain", "Sweden", "Rest of the World"];
+    
+    header.innerHTML = '<th>País Participante</th>';
+    votingBlocks.forEach(b => { header.innerHTML += `<th>${b}</th>`; });
+    header.innerHTML += '<th style="color:var(--accent-cyan);">TOTAL NEW SYSTEM (50/50)</th>';
 
-  header.innerHTML = '<th>País Participant</th>';
-  votingBlocks.forEach(b => { header.innerHTML += `<th>${b}</th>`; });
-  header.innerHTML += '<th style="color:var(--accent-cyan);">TOTAL NEW SYSTEM</th>';
+    // 1. Obtener matriz de Jurados
+    let juryVotesByCountry = {};
+    globalJuryHistory.forEach(j => { juryVotesByCountry[j.country] = j.points || {}; });
+    
+    // Total de puntos entregados por el Jurado
+    let totalJuryPointsDistributed = globalJuryHistory.length * 58;
 
-  let publicVotesByOrigin = {};
-  votingBlocks.forEach(b => publicVotesByOrigin[b] = {});
+    // 2. Conteo global de votos del público por cada bloque origen
+    let publicVotesByOrigin = {};
+    votingBlocks.forEach(b => publicVotesByOrigin[b] = {});
+    
+    let totalPublicVotesGlobal = 0;
 
-  globalHistory.forEach(v => {
-    let orig = v.originCountry || "Rest of the World";
-    if (!votingBlocks.includes(orig)) orig = "Rest of the World";
-    countries.forEach(c => {
-      if (!publicVotesByOrigin[orig][c.name]) publicVotesByOrigin[orig][c.name] = 0;
-      if (orig.toLowerCase() !== c.name.toLowerCase()) {
-        publicVotesByOrigin[orig][c.name] += (v.votes[c.name] || 0);
-      }
+    globalHistory.forEach(v => {
+        let orig = v.originCountry || "Rest of the World";
+        if (!votingBlocks.includes(orig)) orig = "Rest of the World";
+        
+        countries.forEach(c => {
+            if (!publicVotesByOrigin[orig][c.name]) publicVotesByOrigin[orig][c.name] = 0;
+            
+            // Excluir autovoto si coincide país origen con canción
+            if (orig.toLowerCase() !== c.name.toLowerCase()) {
+                const count = (v.votes[c.name] || 0);
+                publicVotesByOrigin[orig][c.name] += count;
+                totalPublicVotesGlobal += count;
+            }
+        });
     });
-  });
 
-  let juryVotesByCountry = {};
-  globalJuryHistory.forEach(j => { juryVotesByCountry[j.country] = j.points || {}; });
+    // 3. Proporción del Televoto Global (Escalado 50/50 igual al Jurado)
+    let globalTeleTotals = {};
+    countries.forEach(c => globalTeleTotals[c.name] = 0);
 
-  let matrix = {};
-  let totalNewSystemMap = {};
-
-  countries.forEach(c => {
-    matrix[c.name] = {};
-    totalNewSystemMap[c.name] = 0;
     votingBlocks.forEach(block => {
-      let juryPts = (juryVotesByCountry[block] && juryVotesByCountry[block][c.name]) ? juryVotesByCountry[block][c.name] : 0;
-      let origVotes = publicVotesByOrigin[block] || {};
-      let sumOrigVotes = Object.values(origVotes).reduce((a,b)=>a+b,0);
-      let telePropPts = 0;
-      if (sumOrigVotes > 0) {
-        let teleMap = calculateProportionalTarget(origVotes, sumOrigVotes, 58);
-        telePropPts = teleMap[c.name] || 0;
-      }
-      let combinedBlockValue = juryPts + telePropPts;
-      matrix[c.name][block] = combinedBlockValue;
-      totalNewSystemMap[c.name] += combinedBlockValue;
+        let origVotes = publicVotesByOrigin[block] || {};
+        countries.forEach(c => {
+            globalTeleTotals[c.name] += (origVotes[c.name] || 0);
+        });
     });
-  });
 
-  let sortedCountries = [...countries].sort((a, b) => totalNewSystemMap[b.name] - totalNewSystemMap[a.name]);
-  body.innerHTML = '';
-  sortedCountries.forEach(c => {
-    let rowHtml = `<tr><td><strong>${c.name}</strong></td>`;
-    votingBlocks.forEach(block => { rowHtml += `<td>${matrix[c.name][block]}</td>`; });
-    rowHtml += `<td style="color:var(--accent-cyan); font-weight:800; font-size:1rem;">${totalNewSystemMap[c.name]}</td></tr>`;
-    body.innerHTML += rowHtml;
-  });
+    let telePropPointsMap = calculateProportionalTarget(
+        globalTeleTotals, 
+        totalPublicVotesGlobal, 
+        totalJuryPointsDistributed > 0 ? totalJuryPointsDistributed : 638
+    );
+
+    // 4. Renderizado de matriz combinada por Bloques
+    let matrix = {};
+    let totalNewSystemMap = {};
+
+    countries.forEach(c => {
+        matrix[c.name] = {};
+        totalNewSystemMap[c.name] = 0;
+
+        votingBlocks.forEach(block => {
+            let juryPts = (juryVotesByCountry[block] && juryVotesByCountry[block][c.name]) ? juryVotesByCountry[block][c.name] : 0;
+            
+            // Reparto proporcional del televoto de este bloque específico respecto a sus votos reales
+            let origVotes = publicVotesByOrigin[block] || {};
+            let sumOrigVotes = Object.values(origVotes).reduce((a, b) => a + b, 0);
+            
+            let teleBlockPts = 0;
+            if (totalPublicVotesGlobal > 0 && sumOrigVotes > 0) {
+                // Peso relativo de este bloque en la bolsa total de televoto 50/50
+                let blockTargetPoints = (sumOrigVotes / totalPublicVotesGlobal) * (totalJuryPointsDistributed > 0 ? totalJuryPointsDistributed : 638);
+                let blockTeleMap = calculateProportionalTarget(origVotes, sumOrigVotes, Math.round(blockTargetPoints));
+                teleBlockPts = blockTeleMap[c.name] || 0;
+            }
+
+            let combinedBlockValue = juryPts + teleBlockPts;
+            matrix[c.name][block] = combinedBlockValue;
+            totalNewSystemMap[c.name] += combinedBlockValue;
+        });
+    });
+
+    let sortedCountries = [...countries].sort((a, b) => totalNewSystemMap[b.name] - totalNewSystemMap[a.name]);
+
+    body.innerHTML = '';
+    sortedCountries.forEach(c => {
+        let rowHtml = `<tr><td><strong>${c.name}</strong></td>`;
+        votingBlocks.forEach(block => { rowHtml += `<td>${matrix[c.name][block]}</td>`; });
+        rowHtml += `<td style="color:var(--accent-cyan); font-weight:800; font-size:1rem;">${totalNewSystemMap[c.name]}</td></tr>`;
+        body.innerHTML += rowHtml;
+    });
 }
 
 function getOrdinalSuffix(i) {
