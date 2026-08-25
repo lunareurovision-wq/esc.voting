@@ -456,7 +456,7 @@ const countries = [
   { id: "02", name: "Andorra", code: "ad", song: "SELENA", artist: "Daniela Blasco", image: "https://images.genius.com/b01e3d9cb9c2aaf0f1d6608ed61c254b.1000x1000x1.jpg" },
   { id: "03", name: "Canada", code: "ca", song: "Unethical", artist: "Faouzia", image: "https://canadianimmigrant.ca/wp-content/uploads/Faouzia-1024x682.jpg" },
   { id: "04", name: "France", code: "fr", song: "Mieux que moi", artist: "Slimane", image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSh62tlreHlvvvgslcAtfxzywv0VXPj12PbEe8W3ZTLhJl5gWWYppY_VD0&s=10" },
-  { id: "05", name: "Germany", code: "de", song: "joyride", artist: "Maggie Lindemann", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Maggie_Lindemann_-_2023155142512_2023-06-04_Rock_am_Ring_-_Sven_-_1D_X_MK_II_-_0291_-_B7019452.jpg/1280px-Maggie_Lindemann_-_2023155142512_2023-06-04_Rock_am_Ring_-_Sven_-_1D_X_MK_II_-_0291_-_B7019452.jpg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=thumbnail" },
+  { id: "05", name: "Germany", code: "de", song: "joyride", artist: "Maggie Lindemann", image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRQQNuB8npjbl6yNlE_GE8PxMhJZaj-5vb1i5D3yo4aKqbzfoSfg0U8w6MM&s=10" },
   { id: "06", name: "Iceland", code: "is", song: "Oceania", artist: "Björk", image: "https://img.olympics.com/images/image/private/t_1-1_1280/primary/t9t8mtv9z8qbjpybhxow" },
   { id: "07", name: "Latvia", code: "lv", song: "MATRICA POLKA", artist: "Polka Band", image: "https://i.scdn.co/image/ab67616d00001e02849c63fe60a2ff5e4f408c60" },
   { id: "08", name: "Norway", code: "no", song: "Rear View", artist: "MoyKa", image: "https://i.scdn.co/image/ab67616d00001e02d0150c2c2e0fe4ee640d0394" },
@@ -1119,17 +1119,18 @@ function renderNewSystemTable() {
     votingBlocks.forEach(b => { header.innerHTML += `<th>${b}</th>`; });
     header.innerHTML += '<th style="color:var(--accent-cyan);">TOTAL NEW SYSTEM (50/50)</th>';
 
-    // 1. Obtener matriz de Jurados
+    // 1. Matriz de Jurados
     let juryVotesByCountry = {};
     globalJuryHistory.forEach(j => { juryVotesByCountry[j.country] = j.points || {}; });
     
-    // Total de puntos entregados por el Jurado
     let totalJuryPointsDistributed = globalJuryHistory.length * 58;
 
-    // 2. Conteo global de votos del público por cada bloque origen
+    // 2. Conteo global de votos del público
     let publicVotesByOrigin = {};
     votingBlocks.forEach(b => publicVotesByOrigin[b] = {});
     
+    let globalTeleTotals = {};
+    countries.forEach(c => globalTeleTotals[c.name] = 0);
     let totalPublicVotesGlobal = 0;
 
     globalHistory.forEach(v => {
@@ -1139,58 +1140,68 @@ function renderNewSystemTable() {
         countries.forEach(c => {
             if (!publicVotesByOrigin[orig][c.name]) publicVotesByOrigin[orig][c.name] = 0;
             
-            // Excluir autovoto si coincide país origen con canción
             if (orig.toLowerCase() !== c.name.toLowerCase()) {
                 const count = (v.votes[c.name] || 0);
                 publicVotesByOrigin[orig][c.name] += count;
+                globalTeleTotals[c.name] += count;
                 totalPublicVotesGlobal += count;
             }
         });
     });
 
-    // 3. Proporción del Televoto Global (Escalado 50/50 igual al Jurado)
-    let globalTeleTotals = {};
-    countries.forEach(c => globalTeleTotals[c.name] = 0);
-
-    votingBlocks.forEach(block => {
-        let origVotes = publicVotesByOrigin[block] || {};
-        countries.forEach(c => {
-            globalTeleTotals[c.name] += (origVotes[c.name] || 0);
-        });
-    });
-
-    let telePropPointsMap = calculateProportionalTarget(
+    // 3. Puntos exactos del Televoto Global (idénticos a la tabla general)
+    let globalTeleMap = calculateProportionalTarget(
         globalTeleTotals, 
         totalPublicVotesGlobal, 
         totalJuryPointsDistributed > 0 ? totalJuryPointsDistributed : 638
     );
 
-    // 4. Renderizado de matriz combinada por Bloques
+    // 4. Reparto exacto de la bolsa de televoto global entre los bloques
     let matrix = {};
     let totalNewSystemMap = {};
 
     countries.forEach(c => {
         matrix[c.name] = {};
-        totalNewSystemMap[c.name] = 0;
+        let countryGlobalTeleGoal = globalTeleMap[c.name] || 0;
+        let totalVotesReceivedByCountry = globalTeleTotals[c.name] || 0;
+
+        let allocatedTele = 0;
+        let remainders = [];
 
         votingBlocks.forEach(block => {
             let juryPts = (juryVotesByCountry[block] && juryVotesByCountry[block][c.name]) ? juryVotesByCountry[block][c.name] : 0;
-            
-            // Reparto proporcional del televoto de este bloque específico respecto a sus votos reales
-            let origVotes = publicVotesByOrigin[block] || {};
-            let sumOrigVotes = Object.values(origVotes).reduce((a, b) => a + b, 0);
-            
-            let teleBlockPts = 0;
-            if (totalPublicVotesGlobal > 0 && sumOrigVotes > 0) {
-                // Peso relativo de este bloque en la bolsa total de televoto 50/50
-                let blockTargetPoints = (sumOrigVotes / totalPublicVotesGlobal) * (totalJuryPointsDistributed > 0 ? totalJuryPointsDistributed : 638);
-                let blockTeleMap = calculateProportionalTarget(origVotes, sumOrigVotes, Math.round(blockTargetPoints));
-                teleBlockPts = blockTeleMap[c.name] || 0;
+            let votesFromBlock = (publicVotesByOrigin[block] && publicVotesByOrigin[block][c.name]) ? publicVotesByOrigin[block][c.name] : 0;
+
+            let exactTeleBlock = 0;
+            if (totalVotesReceivedByCountry > 0) {
+                exactTeleBlock = (votesFromBlock / totalVotesReceivedByCountry) * countryGlobalTeleGoal;
             }
 
-            let combinedBlockValue = juryPts + teleBlockPts;
-            matrix[c.name][block] = combinedBlockValue;
-            totalNewSystemMap[c.name] += combinedBlockValue;
+            let floorTele = Math.floor(exactTeleBlock);
+            allocatedTele += floorTele;
+            
+            remainders.push({
+                block: block,
+                juryPts: juryPts,
+                floorTele: floorTele,
+                rem: exactTeleBlock - floorTele
+            });
+        });
+
+        // Ajustar exactamente la diferencia de redondeo dentro de la fila
+        let remainingToAllocate = countryGlobalTeleGoal - allocatedTele;
+        remainders.sort((a, b) => b.rem - a.rem);
+
+        for (let i = 0; i < remainingToAllocate; i++) {
+            remainders[i].floorTele += 1;
+        }
+
+        // Asignar los valores finales ajustados a la matriz
+        totalNewSystemMap[c.name] = 0;
+        remainders.forEach(r => {
+            let finalVal = r.juryPts + r.floorTele;
+            matrix[c.name][r.block] = finalVal;
+            totalNewSystemMap[c.name] += finalVal;
         });
     });
 
