@@ -1336,5 +1336,42 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 </script>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mi Página</title>
+</head>
+<body>
+
+  <!-- AQUÍ VA TODO TU CONTENIDO Y TUS TABLAS -->
+  <table>... 1ª tabla ...</table>
+  <table>... 2ª tabla ...</table>
+  <table>... 3ª tabla ...</table>
+  <table>... 4ª tabla ...</table>
+
+  <!-- COLOCA EL CÓDIGO AQUÍ, AL FINAL DEL BODY -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const tabla = document.querySelectorAll('table')[3];
+      if (!tabla) return;
+
+      const CLAVE_STORAGE = 'datos_cuarta_tabla';
+
+      // Cargar datos guardados
+      const datosGuardados = localStorage.getItem(CLAVE_STORAGE);
+      if (datosGuardados) {
+        tabla.innerHTML = datosGuardados;
+      }
+
+      // Guardar cambios
+      function guardarTabla() {
+        localStorage.setItem(CLAVE_STORAGE, tabla.innerHTML);
+      }
+
+      tabla.addEventListener('input', guardarTabla);
+      tabla.addEventListener('blur', guardarTabla, true);
+    });
+  </script>
+
 </body>
 </html>
